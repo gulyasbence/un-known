@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs';
 import { db, id, now, getRound, getSession, saveSession, type Brief } from './db.js';
 import { fund, priceRound, charge, payout } from './money.js';
 import { COPY_PROMPT, makeBrief, mainQuestion, decideFollowup, makeReport, type Turn, type State } from './prompts.js';
-import { live, MODEL } from './llm.js';
+import { live, MODEL, init } from './llm.js';
+import { live as moneyLive, gatewayBalance } from './money.js';
+import { balances } from './chain.js';
+await init();
 
 const app = new Hono();
 const page = (f: string) => (c: any) => c.html(readFileSync(`public/${f}`, 'utf8'));
@@ -17,7 +20,19 @@ app.get('/round/:id/report', page('report.html'));
 app.get('/s/:token', page('session.html'));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
-app.get('/api/meta', c => c.json({ live, model: MODEL, copy_prompt: COPY_PROMPT }));
+app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT }));
+app.get('/api/health', async c => c.json({ model: live ? MODEL : 'mock', wallet: await balances().catch(e => ({ error: String(e) })), gateway: await gatewayBalance().catch(() => null) }));
+// One invite link per round. Opening it spawns a session.
+app.get('/r/:id', async c => {
+  const r = getRound(c.req.param('id'));
+  if (!r || !r.funded_at) return c.text('This round is not live.', 404);
+  if (r.balance_cents <= 0) return c.text('This round is out of budget.', 410);
+  const sid = id(), token = id() + id();
+  const state: State = { item: 0, asked_followup: false, followups: 0, skipped: 0, done: false };
+  const transcript: Turn[] = [{ role: 'agent', text: mainQuestion(r.brief, 0), item: 0, kind: 'main' }];
+  db.prepare('insert into sessions (id, round_id, token, created_at, state, transcript) values (?,?,?,?,?,?)').run(sid, r.id, token, now(), JSON.stringify(state), JSON.stringify(transcript));
+  return c.redirect('/s/' + token);
+});
 
 // Column 3
 app.post('/api/brief', async c => {
@@ -90,6 +105,7 @@ app.post('/api/s/:token/answer', async c => {
       s.receipt = receipt(s, r, tr, st);
       await payout(s.id, r.bounty_cents); s.paid_at = now();
       charge(r.id, r.bounty_cents);
+      saveSession(s); writeReport(s.id).catch(e => console.error('[report]', e));
     } else {
       tr.push({ role: 'agent', text: mainQuestion(r.brief, st.item), item: st.item, kind: 'main' });
     }
@@ -105,7 +121,7 @@ app.post('/api/s/:token/stop', async c => {
   s.transcript.push({ role: 'agent', text: `Thanks for the time. $${(r.bounty_cents / 100).toFixed(2)} is on its way.`, kind: 'close' });
   s.receipt = receipt(s, r, s.transcript, s.state);
   await payout(s.id, r.bounty_cents); s.paid_at = now(); charge(r.id, r.bounty_cents);
-  saveSession(s);
+  saveSession(s); writeReport(s.id).catch(e => console.error('[report]', e));
   return c.json({ ok: true, receipt: s.receipt });
 });
 
@@ -122,18 +138,16 @@ function receipt(s: any, r: any, tr: Turn[], st: State) {
   };
 }
 
-// Column 9: one-session report
-app.post('/api/sessions/:id/report', async c => {
-  const s = getSession('id', c.req.param('id'));
-  if (!s) return c.json({ error: 'no session' }, 404);
-  const r = getRound(s.round_id)!;
+// Column 9: one-session report, written when the session ends
+async function writeReport(sid: string) {
+  const s = getSession('id', sid)!; const r = getRound(s.round_id)!;
   const rep = await makeReport(r.brief, s.transcript);
   s.cost_cents += rep.cost_cents; charge(r.id, rep.cost_cents);
   s.report = { ...rep.data, generated_at: now(), cost_cents: rep.cost_cents };
   if (s.receipt) s.receipt.inference_cents = s.cost_cents;
-  saveSession(s);
-  return c.json(s.report);
-});
+  saveSession(s); return s.report;
+}
+app.post('/api/sessions/:id/report', async c => c.json(await writeReport(c.req.param('id'))));
 app.get('/api/sessions/:id', c => {
   const s = getSession('id', c.req.param('id'));
   if (!s) return c.json({ error: 'no session' }, 404);
@@ -143,4 +157,4 @@ app.get('/api/sessions/:id', c => {
 
 const port = Number(process.env.PORT || 3010);
 serve({ fetch: app.fetch, port });
-console.log(`five unknowns on http://localhost:${port} · model ${live ? MODEL : 'mock (no ORBIO_API_KEY)'}`);
+console.log(`five unknowns on http://localhost:${port} · model ${live ? MODEL : 'mock (no key)'} · money ${moneyLive ? 'live on chain 4663' : 'stub'}`);

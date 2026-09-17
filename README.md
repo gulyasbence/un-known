@@ -13,4 +13,16 @@ pnpm dev
 Open http://localhost:3010
 
 ## Where the money is
-`src/money.ts`. Three calls: fund a round, read balance, pay a session. Stubbed now, logs what it would do. The real thing: `buyAndActivate` on Robinhood Chain, a key from a wallet signature, `X-Orbio-Balance` on every response.
+`src/money.ts` and `src/chain.ts`. Three calls: fund a round, read balance, pay a session.
+
+- **Fund**: the agent wallet approves USDG and calls `exchange.buyAndActivate(usdgIn, minCreditOut, beneficiary, maxFills)` on Robinhood Chain (4663), quoting first with `getQuote`. The bought CREDIT burns straight into the wallet's API balance. Only the inference part of the round is bought; bounties are paid by hand this week and shown on the receipt.
+- **Key**: the wallet signs `Orbio API key · chain 4663 · epoch N`, the signature is the key. No transaction.
+- **Balance**: `GET /api/v1/key`, and every model response carries `X-Orbio-Balance`.
+
+With `WALLET_PRIVATE_KEY` unset the layer is a stub that logs what it would do, so the flow runs without a wallet. ABIs in `abi/` are Orbio's published integration subsets.
+
+## Deploy
+Dockerfile and `fly.toml` included. SQLite lives on the `data` volume. `fly launch --copy-config`, then set the secrets from `.env.example`.
+
+## Health
+`GET /api/health` shows the model in use, the wallet's USDG / CREDIT / ETH, and the gateway balance.

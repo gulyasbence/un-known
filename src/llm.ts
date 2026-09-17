@@ -1,19 +1,25 @@
 import OpenAI from 'openai';
-const key = process.env.ORBIO_API_KEY;
+import { apiKey } from './money.js';
 export const MODEL = process.env.ORBIO_MODEL || 'anthropic/claude-sonnet-4.5';
-const client = key ? new OpenAI({ apiKey: key, baseURL: process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1', defaultHeaders: { 'HTTP-Referer': 'https://orbio.so/build', 'X-Title': 'Five Unknowns' } }) : null;
-export const live = !!client;
+let client: OpenAI | null = null;
+export let live = false;
+export async function init() {
+  const key = await apiKey();
+  if (key) { client = new OpenAI({ apiKey: key, baseURL: process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1', defaultHeaders: { 'HTTP-Referer': 'https://orbio.so/build', 'X-Title': 'Five Unknowns' } }); live = true; }
+}
 
 export type LlmResult<T> = { data: T; cost_cents: number; balance: string | null; tokens: { in: number; out: number } };
 
 // One call, JSON out. Cost from the balance header when Orbio sends it, else a token estimate.
 export async function json<T>(system: string, user: string, mock: () => T): Promise<LlmResult<T>> {
   if (!client) return { data: mock(), cost_cents: 0, balance: null, tokens: { in: 0, out: 0 } };
-  const { data: res, response } = await client.chat.completions.create({
+  const call = () => client!.chat.completions.create({
     model: MODEL, temperature: 0.4,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     response_format: { type: 'json_object' },
   }).withResponse();
+  let out; try { out = await call(); } catch (e) { console.warn('[llm] retrying once:', (e as Error).message); out = await call(); }
+  const { data: res, response } = out;
   const text = res.choices[0]?.message?.content ?? '{}';
   const tokens = { in: res.usage?.prompt_tokens ?? 0, out: res.usage?.completion_tokens ?? 0 };
   // Sonnet-class rate as fallback: $3/M in, $15/M out

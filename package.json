@@ -12,6 +12,7 @@
     "dotenv": "^17.4.2",
     "hono": "^4.13.8",
     "openai": "^7.17.0",
+    "viem": "^2.56.6",
     "zod": "^4.6.5"
   },
   "devDependencies": {
