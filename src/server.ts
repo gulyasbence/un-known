@@ -28,7 +28,8 @@ app.get('/r/:id', async c => {
   if (!r || !r.funded_at) return c.text('This round is not live.', 404);
   if (r.balance_cents <= 0) return c.text('This round is out of budget.', 410);
   const sid = id(), token = id() + id();
-  const state: State = { item: 0, asked_followup: false, followups: 0, skipped: 0, done: false };
+  const gb = await gatewayBalance().catch(() => null);
+  const state: State = { item: 0, asked_followup: false, followups: 0, skipped: 0, done: false, used_at_start: gb?.used ?? null };
   const transcript: Turn[] = [{ role: 'agent', text: mainQuestion(r.brief, 0), item: 0, kind: 'main' }];
   db.prepare('insert into sessions (id, round_id, token, created_at, state, transcript) values (?,?,?,?,?,?)').run(sid, r.id, token, now(), JSON.stringify(state), JSON.stringify(transcript));
   return c.redirect('/s/' + token);
@@ -144,6 +145,12 @@ async function writeReport(sid: string) {
   const rep = await makeReport(r.brief, s.transcript);
   s.cost_cents += rep.cost_cents; charge(r.id, rep.cost_cents);
   s.report = { ...rep.data, generated_at: now(), cost_cents: rep.cost_cents };
+  // true up from the gateway: what this session actually cost, brief to report
+  const gb = await gatewayBalance().catch(() => null);
+  if (gb && s.state.used_at_start != null) {
+    const real = Math.max(1, Math.round((gb.used - s.state.used_at_start) * 100));
+    charge(r.id, real - s.cost_cents); s.cost_cents = real;
+  }
   if (s.receipt) s.receipt.inference_cents = s.cost_cents;
   saveSession(s); return s.report;
 }

@@ -27,7 +27,8 @@ Return JSON: {"project": string, "one_line": string, "unknowns": [{"q": string, 
 Rules for unknowns:
 - Each is one question about users' past behaviour, phrased so a short chat interview can ask it. Past tense, specific. Never "would you", never a feature check.
 - Rank by how much of the founder's plan rests on it × how little evidence they gave. First = most rides on it with least evidence.
-- "ask" is how the interviewer opens this with a user: a question about their own past, second person, under 25 words, no product name needed, e.g. "When did you last sell a bag that was too big for the pool? What did you do?"
+- "ask" is how the interviewer opens this with a user: a question about their own past, second person, under 25 words. It must work for someone who used the product once or never; never assume they came back, upgraded, or liked it. e.g. "When did you last sell a bag that was too big for the pool? What did you do?"
+- "one_line" is what the product is and for whom, one sentence, from the paste. Not a diagnosis.
 - "because" is one sentence naming the gap in what the founder gave, in plain words, addressed to the founder ("you said retention is fine but gave no number"). Never flattering.
 - Prefer unknowns under WHAT I BELIEVE that have nothing under WHAT I'VE SEEN.
 Rules for dont_ask:
@@ -51,7 +52,7 @@ export function makeBrief(paste: string) {
 
 // ---------- Column 6: the interviewer ----------
 export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'main' | 'followup' | 'close' | 'open' };
-export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean };
+export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null };
 
 const INT_SYS = (brief: Brief, item: Unknown) => `You are interviewing one user of ${brief.project} (${brief.one_line}) in a short chat. You know the space, so you don't explain it. You ask about them, never about the product's features.
 
@@ -84,25 +85,26 @@ export type Report = {
 };
 const REP_SYS = (brief: Brief) => `You write a one-session research report for the founder of ${brief.project}. One interview only. Never claim more than one person said.
 
-The five questions, in order:
-${brief.unknowns.map((u, i) => `${i + 1}. ${u.q}`).join('\n')}
+The five questions, in order (i = zero-based index):
+${brief.unknowns.map((u, i) => `i=${i} (question ${i + 1}): ${u.q}`).join('\n')}
 
 For each question return a status:
 - "answered": the user gave a specific past event that answers it
 - "opened": they said something relevant but not a full answer
 - "thin": they answered in general terms, no specific event
 - "not_asked": the interview never reached it or it didn't apply to them
-And: "claim": one sentence, what this one person's answer says (present it as one person, e.g. "She thought the 2% was slippage"), "quote": their exact words, verbatim, shortest that carries it, "turn": the index of the transcript turn the quote comes from (integer) or null.
+And: "claim": one sentence, what this one person's answer says. Refer to them as "they" or by handle, never guess a gender (e.g. "They thought the 2% was slippage"), "quote": their exact words, verbatim, shortest that carries it, "turn": the index of the transcript turn the quote comes from (integer) or null.
 
 Then "change_if_true": one sentence, what the founder should change in the product if this one answer holds for more people. Concrete, about the product, not about research.
 "still_open": the question numbers (1-based) that are thin or not asked.
 
 Return JSON: {"items":[{"i":0,"status":"...","claim":"...","quote":"...","turn":3}, ...5], "change_if_true": "...", "still_open": [2,5]}
+"i" is the zero-based index of the question (0 to 4), in order. "still_open" uses 1-based question numbers.
 Plain English. No consultancy words. No praise.`;
 
-export function makeReport(brief: Brief, transcript: Turn[]) {
+export async function makeReport(brief: Brief, transcript: Turn[]) {
   const t = transcript.map((x, i) => `[${i}] ${x.role}: ${x.text}`).join('\n');
-  return json<Report>(REP_SYS(brief), `Transcript:\n${t}`, () => ({
+  const r = await json<Report>(REP_SYS(brief), `Transcript:\n${t}`, () => ({
     items: brief.unknowns.map((_, i) => {
       const ans = transcript.map((x, idx) => ({ x, idx })).filter(({ x }) => x.role === 'user' && x.item === i);
       if (!ans.length) return { i, status: 'not_asked' as const, claim: 'Not reached.', quote: '', turn: null };
@@ -113,4 +115,10 @@ export function makeReport(brief: Brief, transcript: Turn[]) {
     change_if_true: 'Explain the fee on the receipt before the ticket asks for a duration.',
     still_open: brief.unknowns.map((_, i) => i + 1).filter(n => !transcript.some(x => x.role === 'user' && x.item === n - 1)),
   }));
+  // models drift to 1-based; if no item claims 0 and one claims 5, shift
+  const items = r.data.items ?? [];
+  if (items.length && !items.some(x => x.i === 0) && items.some(x => x.i === brief.unknowns.length)) items.forEach(x => x.i -= 1);
+  items.sort((a, b) => a.i - b.i);
+  r.data.items = items.map(x => ({ ...x, claim: x.claim ?? '', quote: x.quote ?? '' }));
+  return r;
 }
