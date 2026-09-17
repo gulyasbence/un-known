@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report · Five Unknowns</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main>
+<p class="small"><a id="back" href="#">← round</a></p>
+<h1 id="title">Report</h1><p class="sub" id="line"></p>
+<div id="out"></div>
+<script>
+const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];$('#back').href='/round/'+rid;const $c=c=>'$'+(c/100).toFixed(2);
+const LAB={answered:'answered',opened:'opened',thin:'thin',not_asked:'not asked'};
+async function load(){const R=await fetch('/api/rounds/'+rid).then(r=>r.json());$('#title').textContent=R.project+' · report';const done=R.sessions.filter(s=>s.done_at);$('#line').textContent=`after ${done.length} session${done.length===1?'':'s'} · ${R.brief.unknowns.length} unknowns · ${$c(R.balance_cents)} left`;
+ const out=$('#out');out.innerHTML='';
+ for(const s of done){const full=await fetch('/api/sessions/'+s.id).then(r=>r.json());let rep=full.report;
+  const sec=document.createElement('section');sec.id='s-'+s.id;
+  const r=s.receipt;sec.innerHTML=`<div class="card receipt">Session · ${r.handle} · ${r.minutes} min<br>asked ${r.asked} · followed up ${r.followed_up} · skipped ${r.skipped}<br>inference ${$c(r.inference_cents)} · bounty ${$c(r.bounty_cents)}</div><div id="rep-${s.id}"></div>`;out.appendChild(sec);
+  const box=sec.querySelector('#rep-'+s.id);
+  if(!rep){box.innerHTML=`<div class="row"><button id="gen-${s.id}">Write the report from this session</button><span class="small muted">one model call, cost lands on the receipt</span></div>`;box.querySelector('button').onclick=async e=>{e.target.disabled=true;e.target.textContent='Writing…';await fetch('/api/sessions/'+s.id+'/report',{method:'POST'});load()};continue}
+  box.innerHTML=rep.items.map(it=>{const u=full.brief.unknowns[it.i];const q=it.quote?`<div class="quote">"${it.quote}" <a href="#t-${s.id}-${it.turn}" onclick="show('${s.id}',${it.turn})">${r.handle} ▸</a></div>`:'';return `<div class="card"><div class="row"><b>${it.i+1}</b><span>${u.q}</span></div><div style="margin:6px 0 0"><span class="status ${it.status}">${LAB[it.status]}</span> <span>${it.claim}</span></div>${q}</div>`}).join('')+
+  `<div class="change"><b>If this is true, change:</b> ${rep.change_if_true}</div><p class="small muted">Still open: ${rep.still_open.length?rep.still_open.map(n=>'#'+n).join(', '):'none'}. One session. Fund more to close them.</p>
+  <details class="card"><summary class="small">the session, ${full.transcript.length} turns</summary><div class="chat" style="margin-top:10px" id="tr-${s.id}">${full.transcript.map((t,i)=>`<div class="msg ${t.role}" id="t-${s.id}-${i}">${t.text}</div>`).join('')}</div></details>`}
+ if(!done.length)out.innerHTML='<div class="card muted">No finished session yet.</div>'}
+window.show=(sid,turn)=>{const d=document.querySelector(`#s-${sid} details`);d.open=true;const el=document.getElementById(`t-${sid}-${turn}`);if(el){el.classList.add('hl');el.scrollIntoView({block:'center'})}};
+load();
+</script>
+</main></body></html>

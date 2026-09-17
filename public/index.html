@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Five Unknowns</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main>
+<h1>Five Unknowns</h1>
+<p class="sub">Paste what you have. Get the five things you don't know about your users, ranked. Fund a round, real people answer in a few minutes, you get a report that answers the five.</p>
+
+<div id="step1">
+  <h2>1 · Get your project into one paste</h2>
+  <div class="card">
+    <p class="small muted" style="margin:0 0 8px">Copy this prompt into the AI that already knows your project (Claude, ChatGPT, Grok). Paste back what it gives you. No form, no account.</p>
+    <div class="row"><button id="copy">Copy the prompt for your AI</button><button class="ghost" id="show">View prompt</button><button class="ghost" id="example">Try an example</button></div>
+    <pre id="prompt" class="mono small" style="display:none;white-space:pre-wrap;margin-top:10px"></pre>
+  </div>
+  <div class="card">
+    <textarea id="paste" placeholder="Paste what it gave you here"></textarea>
+    <div class="row" style="margin-top:8px"><span class="small muted" id="meta"></span><button class="right" id="read">Read it</button></div>
+  </div>
+</div>
+
+<div id="step2" style="display:none">
+  <h2>2 · What you don't know yet</h2>
+  <p class="small muted">Five, ranked by how much rides on it and how little evidence you gave. Reorder, rewrite, kill, add. The list is the brief. The interviewer asks these and nothing under "don't ask".</p>
+  <div class="card"><div class="row"><b id="pname"></b><span class="muted small" id="pline"></span></div></div>
+  <div class="card" id="unknowns"></div>
+  <div class="row"><button class="ghost sm" id="add">+ add one</button></div>
+  <h2>Don't ask</h2>
+  <div class="card"><ul class="dont small" id="dont"></ul><div class="row"><input id="dontnew" placeholder="add one the interviewer must not ask" style="max-width:420px"><button class="ghost sm" id="dontadd">add</button></div></div>
+  <div class="row" style="margin-top:16px"><button id="golive">Go live →</button><span class="small muted">Free until here. Next: price the round.</span></div>
+</div>
+
+<script>
+let brief=null;
+const $=s=>document.querySelector(s);
+fetch('/api/meta').then(r=>r.json()).then(m=>{$('#prompt').textContent=m.copy_prompt;$('#meta').textContent=m.live?('model: '+m.model):'running on a mock model, set ORBIO_API_KEY for the real one';window.PROMPT=m.copy_prompt});
+$('#copy').onclick=async()=>{await navigator.clipboard.writeText(window.PROMPT);$('#copy').textContent='Copied';setTimeout(()=>$('#copy').textContent='Copy the prompt for your AI',1500)};
+$('#show').onclick=()=>{const p=$('#prompt');p.style.display=p.style.display==='none'?'block':'none'};
+$('#example').onclick=()=>{$('#paste').value=EXAMPLE};
+$('#read').onclick=async()=>{$('#read').disabled=true;$('#read').textContent='Reading…';const r=await fetch('/api/brief',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paste:$('#paste').value})}).then(r=>r.json());brief=r.brief;render();$('#step1').style.display='none';$('#step2').style.display='block'};
+function render(){$('#pname').textContent=brief.project;$('#pline').textContent=brief.one_line;
+ const u=$('#unknowns');u.innerHTML='';brief.unknowns.forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><input value=""><div class="because">because: <span></span></div></div><div class="ctl"><button data-a="up">▲</button><button data-a="down">▼</button><button data-a="kill">×</button></div>`;d.querySelector('input').value=x.q;d.querySelector('.because span').textContent=x.because;d.querySelector('input').oninput=e=>x.q=e.target.value;d.querySelectorAll('button').forEach(b=>b.onclick=()=>{const a=b.dataset.a;if(a==='kill')brief.unknowns.splice(i,1);if(a==='up'&&i>0)[brief.unknowns[i-1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i-1]];if(a==='down'&&i<brief.unknowns.length-1)[brief.unknowns[i+1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i+1]];render()});u.appendChild(d)});
+ const dl=$('#dont');dl.innerHTML='';brief.dont_ask.forEach((x,i)=>{const li=document.createElement('li');li.innerHTML=`${x} <button class="ghost sm" style="padding:0 5px;border:0">×</button>`;li.querySelector('button').onclick=()=>{brief.dont_ask.splice(i,1);render()};dl.appendChild(li)})}
+$('#add').onclick=()=>{brief.unknowns.push({q:'',because:'yours, no gap named'});render()};
+$('#dontadd').onclick=()=>{const v=$('#dontnew').value.trim();if(v){brief.dont_ask.push(v);$('#dontnew').value='';render()}};
+$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim());sessionStorage.setItem('brief',JSON.stringify(brief));const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500})}).then(r=>r.json());location.href='/round/'+r.id};
+const EXAMPLE=`PROJECT: Streamswap, a Solana DEX where you sell a big bag over time instead of in one swap, for traders holding more than the pool can absorb at once
+STAGE: live on mainnet since July, one pair with real volume, duration control and receipt shipped, limit orders not yet
+WHO USES IT: about 40 wallets have swapped, 6 came back more than once, known from the indexer
+WHAT THEY DO: connect, enter a size, pick a duration, watch it run, read the receipt
+WHAT I BELIEVE: traders understand that time is the lever; the 2% on the receipt reads as the cost of selling slowly; people find us from KOL posts; a first-timer tries small before real size; the receipt is enough to bring them back
+WHAT I'VE SEEN: 34 of 40 wallets did one swap and never returned (indexer); three support DMs asked "why did I get less than the quote" (TG); one KOL post brought 11 wallets in a day (indexer); no one has used a duration over 1 hour (indexer)
+WHAT I WANT TO DECIDE NEXT: whether to put the fee explanation before the ticket or keep it on the receipt
+DON'T KNOW: who the returning 6 are, what the 34 did next`;
+</script>
+</main></body></html>

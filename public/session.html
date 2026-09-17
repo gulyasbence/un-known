@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quick chat</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main style="max-width:560px">
+<div id="deal"></div>
+<div id="chat" style="display:none">
+ <div class="row" style="margin-bottom:12px"><div class="dots" id="dots"></div><span class="small muted" id="prog"></span><button class="ghost sm right" id="stop">stop here</button></div>
+ <div class="chat" id="msgs"></div>
+ <div class="row" id="inrow"><input id="in" placeholder="type your answer"><button id="send">Send</button></div>
+ <div id="done" style="display:none" class="card receipt"></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);const tok=location.pathname.split('/')[2];let S=null;
+async function load(){S=await fetch('/api/s/'+tok).then(r=>r.json());if(S.state.done||S.transcript.length>1)start();else deal()}
+function deal(){$('#deal').innerHTML=`<div class="card"><h1 style="font-size:19px">${S.project} wants to hear from you</h1><p class="muted">${S.n} questions · about ${S.minutes} minutes · $${(S.bounty_cents/100).toFixed(2)} when you're done</p><p class="small muted">No signup. Your answers go to the founder with your handle, nothing else.</p>
+<div class="row"><input id="handle" placeholder="your handle (optional)" style="max-width:220px"><button id="start">Start</button></div></div>`;$('#start').onclick=()=>{S.handle=$('#handle').value.trim()||null;start()}}
+function start(){$('#deal').innerHTML='';$('#chat').style.display='block';render()}
+function render(){const m=$('#msgs');m.innerHTML='';S.transcript.forEach(t=>{const d=document.createElement('div');d.className='msg '+t.role;d.textContent=t.text;m.appendChild(d)});
+ $('#dots').innerHTML=Array.from({length:S.n},(_,i)=>`<div class="dot ${i<S.state.item||S.state.done?'on':''}"></div>`).join('');$('#prog').textContent=S.state.done?'done':`question ${S.state.item+1} of ${S.n}`;
+ if(S.state.done){$('#inrow').style.display='none';$('#stop').style.display='none';if(S.receipt){$('#done').style.display='block';$('#done').innerHTML=`Thanks. ${S.receipt.minutes} min · ${S.receipt.asked} asked · $${(S.receipt.bounty_cents/100).toFixed(2)} bounty on its way.`}}
+ window.scrollTo(0,document.body.scrollHeight)}
+async function send(){const v=$('#in').value.trim();if(!v)return;$('#in').value='';$('#send').disabled=true;S.transcript.push({role:'user',text:v});render();
+ const r=await fetch('/api/s/'+tok+'/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:v,handle:S.handle})}).then(r=>r.json());S.state=r.state;S.transcript=r.transcript;S.receipt=r.receipt;$('#send').disabled=false;render();$('#in').focus()}
+$('#send').onclick=send;$('#in').onkeydown=e=>{if(e.key==='Enter')send()};
+$('#stop').onclick=async()=>{const r=await fetch('/api/s/'+tok+'/stop',{method:'POST'}).then(r=>r.json());await load()};
+load();
+</script>
+</main></body></html>
