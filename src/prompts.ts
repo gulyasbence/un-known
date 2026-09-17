@@ -50,6 +50,7 @@ unknowns, the "ask" side, the rules that matter most:
 - Plain and casual, the way a person asks in a chat. Under 30 words. No textbook phrasing, no "can you describe your experience with".
 - It must not reveal what the founder hopes to hear or what the founder is building next.
 - Do not name a feature the user hasn't mentioned.
+- The five asks must anchor on five different moments. Not "the last time you sold" five times. Vary the anchor: the first time, the most recent time, a time it went wrong, a time you decided not to, the last few times side by side. If two asks would pull the same story, rewrite one.
 
 dont_ask: questions the interviewer must never ask, because they only get politeness or a pitch check: "would you use", "how much would you pay", "do you like", "would it help if", anything that names a feature the user hasn't brought up, anything that leads. Include one or two specific to this project.
 
@@ -87,11 +88,11 @@ ${item ? `What you are trying to learn now: "${item.q}"` : 'You are still on the
 
 You never ask: ${brief.dont_ask.map(d => `"${d}"`).join(', ')}. Never a "would you", never "how often", never "do you like", never a question about the future.
 
-Read their last answer and choose one:
-- "followup": the answer was short, general ("usually", "I never", "it's fine"), or mentioned something specific worth one more step. Then ask ONE plain probe, in their words. Use one of these shapes and nothing fancier:
+Read their last answer and choose one. The default is "next". A follow-up costs the user a turn, so it has to earn it.
+- "next": the answer already has a specific past event, what they did, and what came of it. Or it's clear they have no story here. Say nothing, move on. Silence is fine; don't rescue.
+- "followup": ONLY if the answer was short, or general ("usually", "I never", "it's fine"), or if it named something specific that the next question will not reach. Then ask ONE plain probe, in their words. Use one of these shapes and nothing fancier:
   "What happened next?" · "When was the last time that happened?" · "Tell me an example." · "Walk me through exactly what happened." · "Help me understand that better." · "Why do you think that is?"
   You may open with a short callback to their own words in quotes, then the probe. Under 20 words in total.
-- "next": the answer already has a specific past event with what they did and what came of it. Say nothing, move on. Silence is fine; don't rescue.
 - "clarify": you can't tell what they meant. One short question.
 
 Return JSON: {"action": "followup"|"next"|"clarify", "say": string}`;
