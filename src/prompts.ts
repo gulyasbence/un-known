@@ -22,11 +22,12 @@ Keep every line short. No headings other than these labels. No advice.`;
 // ---------- Column 3: paste in, five unknowns out ----------
 const BRIEF_SYS = `You turn a founder's project paste into a research brief. The founder wants to know what they don't know about their users, not to hear their pitch back.
 
-Return JSON: {"project": string, "one_line": string, "unknowns": [{"q": string, "because": string}] (exactly 5), "dont_ask": [string] (4 to 6)}
+Return JSON: {"project": string, "one_line": string, "unknowns": [{"q": string, "ask": string, "because": string}] (exactly 5), "dont_ask": [string] (4 to 6)}
 
 Rules for unknowns:
 - Each is one question about users' past behaviour, phrased so a short chat interview can ask it. Past tense, specific. Never "would you", never a feature check.
 - Rank by how much of the founder's plan rests on it × how little evidence they gave. First = most rides on it with least evidence.
+- "ask" is how the interviewer opens this with a user: a question about their own past, second person, under 25 words, no product name needed, e.g. "When did you last sell a bag that was too big for the pool? What did you do?"
 - "because" is one sentence naming the gap in what the founder gave, in plain words, addressed to the founder ("you said retention is fine but gave no number"). Never flattering.
 - Prefer unknowns under WHAT I BELIEVE that have nothing under WHAT I'VE SEEN.
 Rules for dont_ask:
@@ -38,11 +39,11 @@ export function makeBrief(paste: string) {
   return json<Brief>(BRIEF_SYS, paste, () => ({
     project: 'Streamswap', one_line: 'A Solana DEX that sells a big bag over time instead of at once',
     unknowns: [
-      { q: 'What did the last 20 users do after their first swap, and why did most not come back?', because: 'You said retention is "fine" and gave no number.' },
-      { q: 'Who holds a bag they can\'t sell at once today, and what did they do the last time they tried?', because: 'The whole pitch rests on this person and you named none.' },
-      { q: 'When a user saw the 2% gone on their receipt, what did they think it was?', because: 'You believe they understand the fee, you\'ve only seen the drop-off.' },
-      { q: 'Where did the last new user hear about the DEX, and what made them try it that day?', because: 'You listed channels you post in, not channels users came from.' },
-      { q: 'What made a user who left come back, if any did?', because: 'Nothing under WHAT I\'VE SEEN covers a return.' },
+      { q: 'What did the last 20 users do after their first swap, and why did most not come back?', ask: 'Think of the last time you tried a new DEX and only used it once. What happened after that first swap?', because: 'You said retention is "fine" and gave no number.' },
+      { q: 'Who holds a bag they can\'t sell at once today, and what did they do the last time they tried?', ask: 'When did you last hold a bag you couldn\'t sell in one go? What did you do with it?', because: 'The whole pitch rests on this person and you named none.' },
+      { q: 'When a user saw the 2% gone on their receipt, what did they think it was?', ask: 'Last time you got less than the quote said on a sell, what did you think had happened?', because: 'You believe they understand the fee, you\'ve only seen the drop-off.' },
+      { q: 'Where did the last new user hear about the DEX, and what made them try it that day?', ask: 'Where did you hear about the last new DEX you tried, and what made you try it that day?', because: 'You listed channels you post in, not channels users came from.' },
+      { q: 'What made a user who left come back, if any did?', ask: 'Have you ever gone back to a DEX you\'d dropped? What brought you back?', because: 'Nothing under WHAT I\'VE SEEN covers a return.' },
     ],
     dont_ask: ['Would you use a duration slider?', 'How much would you pay for lower slippage?', 'Do you like the receipt?', 'Anything that names TWAP before they do', 'Is Jupiter better?'],
   }));
@@ -66,7 +67,7 @@ Given the user's last answer, decide one of:
 Return JSON: {"action": "followup"|"next"|"clarify", "say": string}`;
 
 export function mainQuestion(brief: Brief, i: number) {
-  return brief.unknowns[i].q;
+  return brief.unknowns[i].ask || brief.unknowns[i].q;
 }
 export function decideFollowup(brief: Brief, i: number, lastAnswer: string, hadFollowup: boolean) {
   if (hadFollowup) return Promise.resolve({ data: { action: 'next' as const, say: '' }, cost_cents: 0, balance: null, tokens: { in: 0, out: 0 } });

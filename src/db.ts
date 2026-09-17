@@ -14,7 +14,7 @@ create table if not exists sessions (
 `);
 export const id = () => Math.random().toString(36).slice(2, 10);
 export const now = () => new Date().toISOString();
-export type Unknown = { q: string; because: string };
+export type Unknown = { q: string; ask?: string; because: string };
 export type Brief = { project: string; one_line: string; unknowns: Unknown[]; dont_ask: string[] };
 export function getRound(rid: string) {
   const r = db.prepare('select * from rounds where id=?').get(rid) as any;

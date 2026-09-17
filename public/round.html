@@ -4,22 +4,22 @@
 <div id="fund"></div>
 <div id="ledger" style="display:none"></div>
 <script>
-const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];let R=null;
+const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];let R=null;let LINK='';
 const $c=c=>'$'+(c/100).toFixed(2);
 async function load(){R=await fetch('/api/rounds/'+rid).then(r=>r.json());$('#title').textContent=R.project+' · round';$('#line').textContent=R.brief.one_line;R.funded_at?ledger():fundcard()}
 function fundcard(){const p=R.price;$('#fund').innerHTML=`<h2>3 · Price the round</h2><div class="card">
 <div class="row"><label>Interviews</label><input type="range" min="1" max="10" value="${R.interviews}" id="n" style="max-width:200px"><b id="nn">${R.interviews}</b><span class="right muted small">bounty $5 each ≈ $12/h at 6 min</span></div>
 <table style="margin-top:12px"><tr><td>Inference</td><td class="r" id="inf">~${$c(p.inference_cents)}</td></tr><tr><td>Bounties</td><td class="r" id="bou">${$c(p.bounties_cents)}</td></tr><tr><td>Round fee</td><td class="r">$0.00</td></tr><tr class="total"><td>Total</td><td class="r" id="tot">${$c(p.total_cents)}</td></tr></table>
-<div class="row" style="margin-top:12px"><button id="go">Fund the round</button><span class="small muted">one signature with your wallet, CREDIT is bought and activated behind this button</span></div></div>`;
+<div class="row" style="margin-top:12px"><button id="go">Fund the round</button><span class="small muted">one signature with your wallet. The round is paid for behind this button.</span></div></div>`;
  $('#n').oninput=e=>{const n=+e.target.value;$('#nn').textContent=n;const inf=n*42,bou=n*500;$('#inf').textContent='~'+$c(inf);$('#bou').textContent=$c(bou);$('#tot').textContent=$c(inf+bou);R.interviews=n};
  $('#go').onclick=async()=>{$('#go').disabled=true;$('#go').textContent='Signing…';await fetch('/api/rounds/'+rid+'/fund',{method:'POST'});await load()}}
 function ledger(){$('#fund').innerHTML='';const L=$('#ledger');L.style.display='block';const done=R.sessions.filter(s=>s.done_at);
  L.innerHTML=`<div class="card"><div class="row"><div><div class="bal">${$c(R.balance_cents)}</div><div class="small muted">left in the round · ${done.length} of ${R.interviews} sessions done</div></div>
- <div class="right small" style="text-align:right"><div class="muted">your link</div><div class="mono" id="link"></div><button class="ghost sm" id="newlink" style="margin-top:4px">new invite link</button></div></div></div>
+ <div class="right small" style="text-align:right"><div class="muted">your link</div><div class="mono" id="link">${LINK}</div><button class="ghost sm" id="newlink" style="margin-top:4px">new invite link</button></div></div></div>
  <div class="card small muted">Where to send it: your Telegram group, your last 20 wallets by DM, one KOL who's used it. The person needs nothing but the link.</div>
  <h2>Sessions</h2><div id="sess"></div>
  <div class="row" style="margin-top:16px"><a href="/round/${rid}/report"><button ${done.length?'':'disabled'}>Open the report →</button></a><span class="small muted">answers the five from what came in</span></div>`;
- $('#newlink').onclick=async()=>{const r=await fetch('/api/rounds/'+rid+'/sessions',{method:'POST'}).then(r=>r.json());$('#link').textContent=location.origin+'/s/'+r.token;await navigator.clipboard.writeText(location.origin+'/s/'+r.token).catch(()=>{})};
+ $('#newlink').onclick=async()=>{const r=await fetch('/api/rounds/'+rid+'/sessions',{method:'POST'}).then(r=>r.json());LINK=location.origin+'/s/'+r.token;$('#link').textContent=LINK;await navigator.clipboard.writeText(location.origin+'/s/'+r.token).catch(()=>{})};
  const S=$('#sess');if(!R.sessions.length)S.innerHTML='<div class="card muted small">Nothing yet. Make a link and send it.</div>';
  R.sessions.forEach((s,k)=>{const d=document.createElement('div');d.className='card receipt';
   if(!s.done_at){d.innerHTML=`Session ${k+1} · <span class="muted">${s.handle||'link opened'} · running</span><br><span class="muted">${location.origin}/s/${s.token}</span>`}
