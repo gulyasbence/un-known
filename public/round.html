@@ -13,7 +13,7 @@ function fundcard(){const p=R.price;$('#fund').innerHTML=`<h2>3 · Price the rou
 <div class="row" style="margin-top:12px"><button id="go">Fund the round</button><span class="small muted">one signature with your wallet. The round is paid for behind this button.</span></div></div>`;
  $('#go').onclick=async()=>{$('#go').disabled=true;$('#go').textContent='Buying and activating…';const f=await fetch('/api/rounds/'+rid+'/fund',{method:'POST'}).then(r=>r.json());if(f.error){$('#go').textContent='Fund the round';$('#go').disabled=false;alert(f.error);return}sessionStorage.setItem('fund-'+rid,JSON.stringify(f));await load()}}
 function ledger(){$('#fund').innerHTML='';const L=$('#ledger');L.style.display='block';const done=R.sessions.filter(s=>s.done_at);
- L.innerHTML=`<div class="card"><div class="row"><div><div class="bal">${$c(R.balance_cents)}</div><div class="small muted">left in the round · ${done.length} of ${R.interviews} sessions done</div></div>
+ L.innerHTML=`<div class="card"><div class="row"><div><div class="bal">${$c(R.balance_cents)}</div><div class="small muted">inference left, on the gateway · ${done.length} of ${R.interviews} sessions done</div><div class="small muted" style="margin-top:4px">${$c(R.bounty_held_cents||0)} held for bounties, paid by hand${R.prep_cents?` · brief cost ${$c(R.prep_cents)}, on us`:''}</div></div>
  <div class="right small" style="text-align:right"><div class="muted">your link, send it to anyone</div><div class="mono" id="link">${location.origin}/r/${rid}</div><button class="ghost sm" id="copylink" style="margin-top:4px">copy</button></div></div>${fundnote()}</div>
  <div class="card small muted">Where to send it: your Telegram group, your last 20 wallets by DM, one KOL who's used it. The person needs nothing but the link.</div>
  <h2>Sessions</h2><div id="sess"></div>
@@ -21,7 +21,8 @@ function ledger(){$('#fund').innerHTML='';const L=$('#ledger');L.style.display='
  $('#copylink').onclick=()=>navigator.clipboard.writeText(location.origin+'/r/'+rid).catch(()=>{});
  const S=$('#sess');if(!R.sessions.length)S.innerHTML='<div class="card muted small">Nothing yet. Make a link and send it.</div>';
  R.sessions.forEach((s,k)=>{const d=document.createElement('div');d.className='card receipt';
-  if(!s.done_at){const old=Date.now()-Date.parse(s.created_at)>30*60000;d.innerHTML=`Session ${k+1} · <span class="muted">${s.handle||'link opened'} · ${old?'abandoned, nothing charged, nothing paid':'running'}</span>`}
+  if(!s.done_at){d.innerHTML=`Session ${k+1} · <span class="muted">${s.handle||'link opened'} · running</span>`}
+  else if(s.abandoned){const r=s.receipt;d.innerHTML=`Session ${k+1} · ${r.handle} · <span class="muted">abandoned after ${r.minutes} min · inference ${$c(r.inference_cents)} · no bounty</span>`}
   else{const r=s.receipt;d.innerHTML=`Session ${k+1} · ${r.handle} · ${r.minutes} min${r.who?`<br><span class="muted">${r.who}</span>`:''}<br>asked ${r.asked} · followed up ${r.followed_up} · skipped ${r.skipped}<br>inference ${$c(r.inference_cents)} · bounty ${$c(r.bounty_cents)}${s.paid_at?' · paid by hand':''}<br>moved: ${r.moved.map(m=>'#'+(m.i+1)+(m.touched?' touched':' —')).join(' · ')}<br><a href="/round/${rid}/report#s-${s.id}">open session</a>`}
   S.appendChild(d)});
 }

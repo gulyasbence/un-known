@@ -12,7 +12,7 @@ create table if not exists sessions (
   state text, transcript text, cost_cents integer default 0, receipt text, report text, paid_at text
 );
 `);
-try { db.exec('alter table rounds add column paste text'); } catch {}
+for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
 export const id = () => Math.random().toString(36).slice(2, 10);
 export const now = () => new Date().toISOString();
 export type Unknown = { q: string; ask?: string; because: string };

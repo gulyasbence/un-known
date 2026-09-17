@@ -4,7 +4,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
 import { db, id, now, getRound, getSession, saveSession, type Brief } from './db.js';
-import { fund, priceRound, charge, payout } from './money.js';
+import { fund, priceRound, charge, payout, releaseBounty } from './money.js';
 import { COPY_PROMPT, makeBrief, mainQuestion, openerQuestion, decideFollowup, makeReport, makeWho, type Turn, type State } from './prompts.js';
 import { live, MODEL, init } from './llm.js';
 import { live as moneyLive, gatewayBalance } from './money.js';
@@ -44,17 +44,34 @@ app.post('/api/brief', async c => {
 
 // Column 4
 app.post('/api/rounds', async c => {
-  const { brief, interviews, bounty_cents, paste } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string };
+  const { brief, interviews, bounty_cents, paste, prep_cents } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string; prep_cents?: number };
   const rid = id();
-  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste) values (?,?,?,?,?,?,0,?)')
-    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null);
+  // prep (the brief call) runs on the product's key, not the founder's round; the round page shows it as "on us"
+  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste, prep_cents) values (?,?,?,?,?,?,0,?,?)')
+    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null, prep_cents ?? 0);
   return c.json({ id: rid, price: priceRound(interviews, bounty_cents) });
 });
+const ABANDON_MS = 30 * 60000;
+function sweep(roundId: string) {
+  const cutoff = new Date(Date.now() - ABANDON_MS).toISOString();
+  // opened the link, never answered, 30 min old: drop it, nothing was charged
+  db.prepare(`delete from sessions where round_id=? and done_at is null and created_at < ? and transcript not like '%"role":"user"%'`).run(roundId, cutoff);
+  // answered something, then left: close it as abandoned with a receipt for what was charged, no bounty
+  const stale = db.prepare(`select id from sessions where round_id=? and done_at is null and created_at < ?`).all(roundId, cutoff) as any[];
+  for (const { id: sid } of stale) {
+    const s = getSession('id', sid)!; const r = getRound(roundId)!;
+    s.state.done = true; s.state.abandoned = true; s.done_at = now();
+    s.receipt = { ...receipt(s, r, s.transcript, s.state), bounty_cents: 0, abandoned: true };
+    saveSession(s);
+  }
+}
 app.get('/api/rounds/:id', c => {
-  const r = getRound(c.req.param('id'));
-  if (!r) return c.json({ error: 'no round' }, 404);
+  const r0 = getRound(c.req.param('id'));
+  if (!r0) return c.json({ error: 'no round' }, 404);
+  sweep(r0.id);
+  const r = getRound(r0.id)!;
   const sessions = (db.prepare('select * from sessions where round_id=? order by created_at').all(r.id) as any[])
-    .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report }));
+    .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report, abandoned: !!JSON.parse(s.state).abandoned }));
   return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions });
 });
 app.post('/api/rounds/:id/fund', async c => {
@@ -65,17 +82,7 @@ app.post('/api/rounds/:id/fund', async c => {
   return c.json(f);
 });
 
-// Column 6: interviewee
-app.post('/api/rounds/:id/sessions', async c => {
-  const r = getRound(c.req.param('id'));
-  if (!r || !r.funded_at) return c.json({ error: 'round not live' }, 400);
-  const sid = id(), token = id() + id();
-  const state: State = { item: 0, asked_followup: false, followups: 0, skipped: 0, done: false };
-  const transcript: Turn[] = [{ role: 'agent', text: mainQuestion(r.brief, 0), item: 0, kind: 'main' }];
-  db.prepare('insert into sessions (id, round_id, token, created_at, state, transcript) values (?,?,?,?,?,?)')
-    .run(sid, r.id, token, now(), JSON.stringify(state), JSON.stringify(transcript));
-  return c.json({ token });
-});
+// Column 6: interviewee. Sessions are spawned by opening /r/:id (one link per round).
 app.get('/api/s/:token', c => {
   const s = getSession('token', c.req.param('token'));
   if (!s) return c.json({ error: 'no session' }, 404);
@@ -112,7 +119,7 @@ app.post('/api/s/:token/answer', async c => {
       tr.push({ role: 'agent', text: `That's all five. Thank you. $${(r.bounty_cents / 100).toFixed(2)} is on its way.`, kind: 'close' });
       s.receipt = receipt(s, r, tr, st);
       await payout(s.id, r.bounty_cents); s.paid_at = now();
-      charge(r.id, r.bounty_cents);
+      releaseBounty(r.id, r.bounty_cents);
       saveSession(s); writeReport(s.id).catch(e => console.error('[report]', e));
     } else {
       tr.push({ role: 'agent', text: mainQuestion(r.brief, st.item), item: st.item, kind: 'main' });
@@ -128,7 +135,7 @@ app.post('/api/s/:token/stop', async c => {
   s.state.done = true; s.done_at = now();
   s.transcript.push({ role: 'agent', text: `Thanks for the time. $${(r.bounty_cents / 100).toFixed(2)} is on its way.`, kind: 'close' });
   s.receipt = receipt(s, r, s.transcript, s.state);
-  await payout(s.id, r.bounty_cents); s.paid_at = now(); charge(r.id, r.bounty_cents);
+  await payout(s.id, r.bounty_cents); s.paid_at = now(); releaseBounty(r.id, r.bounty_cents);
   saveSession(s); writeReport(s.id).catch(e => console.error('[report]', e));
   return c.json({ ok: true, receipt: s.receipt });
 });

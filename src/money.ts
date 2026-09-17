@@ -33,19 +33,22 @@ export async function fund(roundId: string, interviews: number, bounty_cents: nu
   const p = priceRound(interviews, bounty_cents);
   if (!live) {
     console.log(`[money] stub: would approve USDG and buyAndActivate ${(p.inference_cents / 100).toFixed(2)} for the round, bounties ${(p.bounties_cents / 100).toFixed(2)} held for hand-pay`);
-    db.prepare('update rounds set funded_at=?, tx=?, balance_cents=? where id=?').run(now(), 'stub', p.total_cents, roundId);
-    return { tx: 'stub', balance_cents: p.total_cents, note: 'stub, no wallet configured' };
+    db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), 'stub', p.inference_cents, p.bounties_cents, roundId);
+    return { tx: 'stub', balance_cents: p.inference_cents, note: 'stub, no wallet configured' };
   }
   // Only the inference part is bought and activated. Bounties are paid by hand this week and shown on the receipt.
   const r = await chain.buyAndActivate(p.inference_cents / 100);
   if (r.status !== 'success') throw new Error('buyAndActivate reverted: ' + r.tx);
   const gb = await gatewayBalance();
-  const balance_cents = Math.round(((gb?.available ?? r.quoted_credit) * 100)) + p.bounties_cents;
-  db.prepare('update rounds set funded_at=?, tx=?, balance_cents=? where id=?').run(now(), r.tx, balance_cents, roundId);
+  const balance_cents = Math.round(((gb?.available ?? r.quoted_credit) * 100));
+  db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), r.tx, balance_cents, p.bounties_cents, roundId);
   return { tx: r.tx, balance_cents, explorer: r.explorer, note: `bought ${r.quoted_credit.toFixed(2)} CREDIT for ${r.quoted_usdg.toFixed(2)} USDG and activated it` };
 }
 export function charge(roundId: string, cents: number) {
   db.prepare('update rounds set balance_cents = balance_cents - ? where id=?').run(cents, roundId);
+}
+export function releaseBounty(roundId: string, cents: number) {
+  db.prepare('update rounds set bounty_held_cents = bounty_held_cents - ? where id=?').run(cents, roundId);
 }
 export async function payout(sessionId: string, bounty_cents: number) {
   console.log(`[money] bounty ${(bounty_cents / 100).toFixed(2)} for session ${sessionId}: paid by hand this week`);

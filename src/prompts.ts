@@ -77,7 +77,7 @@ export function makeBrief(paste: string) {
 
 // ---------- Column 6: the interviewer ----------
 export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'open' | 'main' | 'followup' | 'close' };
-export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string };
+export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string; abandoned?: boolean };
 
 // The interviewer is told the topic of the unknown, never the founder's belief or the "because" line.
 const INT_SYS = (brief: Brief, item: Unknown | null, who: string, earlier: string) => `You are running a short chat interview with one user for ${brief.project} (${brief.one_line}). You know this world, so you don't explain it and you don't sound like a textbook. You ask about their life and what they did, never about the product's features, and you never pitch.

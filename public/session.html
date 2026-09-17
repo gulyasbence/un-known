@@ -15,7 +15,7 @@ function deal(){$('#deal').innerHTML=`<div class="card"><h1 style="font-size:19p
 ${(S.screener||[]).map((q,i)=>`<div style="margin:10px 0 4px"><div class="small" style="margin-bottom:4px">${q.q}</div><div class="row" data-i="${i}">${q.options.map(o=>`<button class="ghost sm" data-o="${o.replace(/"/g,'&quot;')}">${o}</button>`).join('')}</div></div>`).join('')}
 <div class="row" style="margin-top:12px"><input id="handle" placeholder="your handle (optional)" style="max-width:220px"><button id="start">Start</button></div></div>`;
  document.querySelectorAll('#deal .row[data-i]').forEach(row=>row.querySelectorAll('button').forEach(b=>b.onclick=()=>{row.querySelectorAll('button').forEach(x=>{x.style.background='';x.style.color=''});b.style.background='#1a1a18';b.style.color='#fff';SCREEN[+row.dataset.i]=b.dataset.o}));
- $('#start').onclick=()=>{S.handle=$('#handle').value.trim()||null;start()}}
+ $('#start').onclick=()=>{const need=(S.screener||[]).length;if(SCREEN.filter(Boolean).length<need){$('#start').textContent='Pick an answer above first';setTimeout(()=>$('#start').textContent='Start',1500);return}S.handle=$('#handle').value.trim()||null;start()}}
 function start(){$('#deal').innerHTML='';$('#chat').style.display='block';render()}
 function render(){const m=$('#msgs');m.innerHTML='';S.transcript.forEach(t=>{const d=document.createElement('div');d.className='msg '+t.role;d.textContent=t.text;m.appendChild(d)});
  $('#dots').innerHTML=Array.from({length:S.n},(_,i)=>`<div class="dot ${i<S.state.item+1||S.state.done?'on':''}"></div>`).join('');$('#prog').textContent=S.state.done?'done':`question ${S.state.item+2} of ${S.n}`;
