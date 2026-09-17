@@ -5,7 +5,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
 import { db, id, now, getRound, getSession, saveSession, type Brief } from './db.js';
 import { fund, priceRound, charge, payout } from './money.js';
-import { COPY_PROMPT, makeBrief, mainQuestion, decideFollowup, makeReport, type Turn, type State } from './prompts.js';
+import { COPY_PROMPT, makeBrief, mainQuestion, openerQuestion, decideFollowup, makeReport, makeWho, type Turn, type State } from './prompts.js';
 import { live, MODEL, init } from './llm.js';
 import { live as moneyLive, gatewayBalance } from './money.js';
 import { balances } from './chain.js';
@@ -29,8 +29,8 @@ app.get('/r/:id', async c => {
   if (r.balance_cents <= 0) return c.text('This round is out of budget.', 410);
   const sid = id(), token = id() + id();
   const gb = await gatewayBalance().catch(() => null);
-  const state: State = { item: 0, asked_followup: false, followups: 0, skipped: 0, done: false, used_at_start: gb?.used ?? null };
-  const transcript: Turn[] = [{ role: 'agent', text: mainQuestion(r.brief, 0), item: 0, kind: 'main' }];
+  const state: State = { item: -1, asked_followup: false, followups: 0, skipped: 0, done: false, used_at_start: gb?.used ?? null, screener: [], who: '' };
+  const transcript: Turn[] = [{ role: 'agent', text: openerQuestion(r.brief), item: -1, kind: 'open' }];
   db.prepare('insert into sessions (id, round_id, token, created_at, state, transcript) values (?,?,?,?,?,?)').run(sid, r.id, token, now(), JSON.stringify(state), JSON.stringify(transcript));
   return c.redirect('/s/' + token);
 });
@@ -44,10 +44,10 @@ app.post('/api/brief', async c => {
 
 // Column 4
 app.post('/api/rounds', async c => {
-  const { brief, interviews, bounty_cents } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number };
+  const { brief, interviews, bounty_cents, paste } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string };
   const rid = id();
-  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents) values (?,?,?,?,?,?,0)')
-    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents);
+  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste) values (?,?,?,?,?,?,0,?)')
+    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null);
   return c.json({ id: rid, price: priceRound(interviews, bounty_cents) });
 });
 app.get('/api/rounds/:id', c => {
@@ -80,25 +80,32 @@ app.get('/api/s/:token', c => {
   const s = getSession('token', c.req.param('token'));
   if (!s) return c.json({ error: 'no session' }, 404);
   const r = getRound(s.round_id)!;
-  return c.json({ project: r.brief.project, one_line: r.brief.one_line, n: r.brief.unknowns.length, bounty_cents: r.bounty_cents, minutes: 4, state: s.state, transcript: s.transcript, handle: s.handle, receipt: s.receipt });
+  return c.json({ project: r.brief.project, one_line: r.brief.one_line, n: r.brief.unknowns.length + 1, screener: r.brief.screener, bounty_cents: r.bounty_cents, minutes: 5, state: s.state, transcript: s.transcript, handle: s.handle, receipt: s.receipt });
 });
 app.post('/api/s/:token/answer', async c => {
   const s = getSession('token', c.req.param('token'));
   if (!s) return c.json({ error: 'no session' }, 404);
   if (s.state.done) return c.json({ state: s.state, transcript: s.transcript });
   const r = getRound(s.round_id)!;
-  const { text, handle } = await c.req.json();
+  const { text, handle, screener } = await c.req.json();
   if (handle) s.handle = handle;
   const st: State = s.state; const tr: Turn[] = s.transcript;
+  if (Array.isArray(screener) && screener.length) st.screener = screener;
   const i = st.item;
   tr.push({ role: 'user', text, item: i });
-  const d = await decideFollowup(r.brief, i, text, st.asked_followup);
+  const d = await decideFollowup(r.brief, i, tr, text, st.asked_followup, st.who ?? '');
   s.cost_cents += d.cost_cents; charge(r.id, d.cost_cents);
   if ((d.data.action === 'followup' || d.data.action === 'clarify') && d.data.say) {
     st.asked_followup = true; st.followups++;
     tr.push({ role: 'agent', text: d.data.say, item: i, kind: 'followup' });
   } else {
-    if (!st.asked_followup) st.skipped++;
+    if (!st.asked_followup && i >= 0) st.skipped++;
+    if (i === -1) {
+      // leaving the opener: write the one-line "who" from screener + opener answers
+      const openerAnswers = tr.filter(t => t.role === 'user' && t.item === -1).map(t => t.text).join(' ');
+      const w = await makeWho((r.brief.screener ?? []).map((q: { q: string }, k: number) => ({ q: q.q, a: st.screener?.[k] ?? "" })), openerAnswers);
+      s.cost_cents += w.cost_cents; charge(r.id, w.cost_cents); st.who = w.data.who;
+    }
     st.item++; st.asked_followup = false;
     if (st.item >= r.brief.unknowns.length) {
       st.done = true; s.done_at = now();
@@ -129,10 +136,10 @@ app.post('/api/s/:token/stop', async c => {
 // The receipt: the atom both legs share
 function receipt(s: any, r: any, tr: Turn[], st: State) {
   const asked = new Set(tr.filter(t => t.role === 'agent' && t.kind === 'main').map(t => t.item)).size;
-  const answered = new Set(tr.filter(t => t.role === 'user').map(t => t.item));
+  const answered = new Set(tr.filter(t => t.role === 'user' && (t.item ?? -1) >= 0).map(t => t.item));
   const mins = Math.max(1, Math.round((Date.parse(s.done_at ?? now()) - Date.parse(s.created_at)) / 60000));
   return {
-    session: s.id, handle: s.handle ?? 'anon', minutes: mins,
+    session: s.id, handle: s.handle ?? 'anon', who: st.who ?? '', minutes: mins,
     asked, followed_up: st.followups, skipped: st.skipped,
     inference_cents: s.cost_cents, bounty_cents: r.bounty_cents,
     moved: r.brief.unknowns.map((_: any, i: number) => ({ i, touched: answered.has(i) })),
@@ -142,7 +149,7 @@ function receipt(s: any, r: any, tr: Turn[], st: State) {
 // Column 9: one-session report, written when the session ends
 async function writeReport(sid: string) {
   const s = getSession('id', sid)!; const r = getRound(s.round_id)!;
-  const rep = await makeReport(r.brief, s.transcript);
+  const rep = await makeReport(r.brief, s.transcript, s.state.who ?? '');
   s.cost_cents += rep.cost_cents; charge(r.id, rep.cost_cents);
   s.report = { ...rep.data, generated_at: now(), cost_cents: rep.cost_cents };
   // true up from the gateway: what this session actually cost, brief to report

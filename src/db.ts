@@ -5,17 +5,18 @@ export const db = new DatabaseSync('data/app.db');
 db.exec(`
 create table if not exists rounds (
   id text primary key, created_at text, project text, brief text,
-  interviews integer, bounty_cents integer, funded_at text, tx text, balance_cents integer
+  interviews integer, bounty_cents integer, funded_at text, tx text, balance_cents integer, paste text
 );
 create table if not exists sessions (
   id text primary key, round_id text, token text unique, handle text, created_at text, done_at text,
   state text, transcript text, cost_cents integer default 0, receipt text, report text, paid_at text
 );
 `);
+try { db.exec('alter table rounds add column paste text'); } catch {}
 export const id = () => Math.random().toString(36).slice(2, 10);
 export const now = () => new Date().toISOString();
 export type Unknown = { q: string; ask?: string; because: string };
-export type Brief = { project: string; one_line: string; unknowns: Unknown[]; dont_ask: string[] };
+export type Brief = { project: string; one_line: string; screener: { q: string; options: string[] }[]; opener: string; unknowns: Unknown[]; dont_ask: string[] };
 export function getRound(rid: string) {
   const r = db.prepare('select * from rounds where id=?').get(rid) as any;
   if (!r) return null;

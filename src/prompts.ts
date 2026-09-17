@@ -4,7 +4,7 @@ import type { Brief, Unknown } from './db.js';
 // ---------- Column 2: the prompt the founder copies into their own AI ----------
 export const COPY_PROMPT = `I'm about to run short interviews with people who use (or should use) my product. Help me get my context into one plain-text paste.
 
-Start with what you already know about me and this project from our conversations, memory, and anything I've shared here. Don't browse unless you need to. If a fact is missing, write "unknown" rather than guessing. Do not present my plans as things that already happened. Do not invent users, numbers, or outcomes. If you're unsure whether something is a belief of mine or a fact, put it under BELIEFS.
+Start with what you already know about me and this project from our conversations, memory, and anything I've shared here. Don't browse unless you need to. If a fact is missing, write "unknown" rather than guessing. Do not present my plans as things that already happened. Do not invent users, numbers, or outcomes. If you're unsure whether something is a belief of mine or a fact, put it under WHAT I BELIEVE.
 
 Return only the paste, plain text, these labels, nothing else:
 
@@ -20,105 +20,150 @@ DON'T KNOW: anything the above needed that you couldn't fill
 Keep every line short. No headings other than these labels. No advice.`;
 
 // ---------- Column 3: paste in, five unknowns out ----------
-const BRIEF_SYS = `You turn a founder's project paste into a research brief. The founder wants to know what they don't know about their users, not to hear their pitch back.
+const BRIEF_SYS = `You turn a founder's project paste into a research brief for short chat interviews with users. The founder wants to find out what they don't know about their users. They do not want their pitch read back to them.
 
-Return JSON: {"project": string, "one_line": string, "unknowns": [{"q": string, "ask": string, "because": string}] (exactly 5), "dont_ask": [string] (4 to 6)}
+Return JSON:
+{"project": string, "one_line": string,
+ "screener": [{"q": string, "options": [string]}] (exactly 2),
+ "opener": string,
+ "unknowns": [{"q": string, "ask": string, "because": string}] (exactly 5),
+ "dont_ask": [string] (4 to 6)}
 
-Rules for unknowns:
-- Each is one question about users' past behaviour, phrased so a short chat interview can ask it. Past tense, specific. Never "would you", never a feature check.
-- Rank by how much of the founder's plan rests on it × how little evidence they gave. First = most rides on it with least evidence.
-- "ask" is how the interviewer opens this with a user: a question about their own past, second person, under 25 words. It must work for someone who used the product once or never; never assume they came back, upgraded, or liked it. e.g. "When did you last sell a bag that was too big for the pool? What did you do?"
-- "one_line" is what the product is and for whom, one sentence, from the paste. Not a diagnosis.
-- "because" is one sentence naming the gap in what the founder gave, in plain words, addressed to the founder ("you said retention is fine but gave no number"). Never flattering.
-- Prefer unknowns under WHAT I BELIEVE that have nothing under WHAT I'VE SEEN.
-Rules for dont_ask:
-- Questions the interviewer must not ask because they would only get politeness or a pitch check: "would you use", "how much would you pay", "do you like", anything that names a feature the user hasn't seen, anything that leads.
-- Include 1 or 2 specific to this project.
-Plain English, no consultancy words.`;
+Two layers. "q" is what the founder wants to learn, written for the founder. "ask" is what the interviewer says to a user, one level lower, written for the user. They are not the same sentence.
+
+one_line: what the product is and for whom, one sentence from the paste. Not a diagnosis.
+
+screener: two closed questions the user taps before the chat, so the founder knows who answered. Each has 3 to 5 short options. The first is about how long or how deep they are in this world (e.g. "How long have you been trading on-chain?"). The second is about recent behaviour in the product's area (e.g. "Last week, what did you do on-chain?"), not about the product itself. Options are plain, no jargon the user might not know.
+
+opener: one open question that starts the chat. Life first, not the product. It zooms out: how this world fits into their week, when they do the thing the product is about, what they're paying attention to right now. Example: "How does trading fit into your week? When do you open your wallet, and what makes you go on-chain?" It must not name the product.
+
+unknowns, the "q" side:
+- One thing the founder doesn't know about their users, phrased as a question about past behaviour, not about the product's features.
+- Rank by how much of the founder's plan rests on it × how little evidence the paste gives. First = most rides on it, least behind it. Prefer items under WHAT I BELIEVE that have nothing under WHAT I'VE SEEN.
+- Order them so the interview zooms in: the first two are about their behaviour in this area in general, the later ones get closer to the product and to the decision the founder wants to make.
+- "because" is one sentence naming the gap in what the founder gave, in plain words, to the founder ("you said retention is fine but gave no number"). Never flattering.
+
+unknowns, the "ask" side, the rules that matter most:
+- Open, past tense, anchored in a real event: "Think of the last time you… Walk me through what happened." Never "would you", never "how often do you", never "how common do you think", never "do you like".
+- It must not be answerable in one word. "When did you last…?" invites "yesterday". Ask for the story: what they were doing, what they did, what happened next.
+- It must not assume anything about them: not that they used the product, came back, liked it, or hold a position. It has to work for someone who used it once or never.
+- Plain and casual, the way a person asks in a chat. Under 30 words. No textbook phrasing, no "can you describe your experience with".
+- It must not reveal what the founder hopes to hear or what the founder is building next.
+- Do not name a feature the user hasn't mentioned.
+
+dont_ask: questions the interviewer must never ask, because they only get politeness or a pitch check: "would you use", "how much would you pay", "do you like", "would it help if", anything that names a feature the user hasn't brought up, anything that leads. Include one or two specific to this project.
+
+Plain English throughout. No consultancy words. Everything short.`;
 
 export function makeBrief(paste: string) {
   return json<Brief>(BRIEF_SYS, paste, () => ({
-    project: 'Streamswap', one_line: 'A Solana DEX that sells a big bag over time instead of at once',
+    project: 'Streamswap', one_line: 'A Solana DEX that sells a big bag over time instead of at once, for traders holding more than the pool can absorb',
+    screener: [
+      { q: 'How long have you been trading on-chain?', options: ['Under a year', '1 to 3 years', 'Longer'] },
+      { q: 'Last week, what did you do on-chain?', options: ['Nothing', 'A swap or two', 'Traded most days', 'Moved a big position'] },
+    ],
+    opener: 'How does trading fit into your week? When do you open your wallet, and what makes you go on-chain?',
     unknowns: [
-      { q: 'What did the last 20 users do after their first swap, and why did most not come back?', ask: 'Think of the last time you tried a new DEX and only used it once. What happened after that first swap?', because: 'You said retention is "fine" and gave no number.' },
-      { q: 'Who holds a bag they can\'t sell at once today, and what did they do the last time they tried?', ask: 'When did you last hold a bag you couldn\'t sell in one go? What did you do with it?', because: 'The whole pitch rests on this person and you named none.' },
-      { q: 'When a user saw the 2% gone on their receipt, what did they think it was?', ask: 'Last time you got less than the quote said on a sell, what did you think had happened?', because: 'You believe they understand the fee, you\'ve only seen the drop-off.' },
-      { q: 'Where did the last new user hear about the DEX, and what made them try it that day?', ask: 'Where did you hear about the last new DEX you tried, and what made you try it that day?', because: 'You listed channels you post in, not channels users came from.' },
-      { q: 'What made a user who left come back, if any did?', ask: 'Have you ever gone back to a DEX you\'d dropped? What brought you back?', because: 'Nothing under WHAT I\'VE SEEN covers a return.' },
+      { q: 'What do traders do today when a position is bigger than the pool can take?', ask: 'Think of the last time you had a bag that was too big to sell in one go. What did you do with it, start to finish?', because: 'The whole pitch rests on this person and you named none.' },
+      { q: 'What did the last new users do after their first swap, and why did most not come back?', ask: 'Think of a DEX you tried once and didn\'t go back to. What happened on that first swap, and what did you do after?', because: 'You said retention is "fine" and gave no number.' },
+      { q: 'What did traders think the 2% on the receipt was?', ask: 'Last time you got less than the quote said on a sell, what did you think had happened? What did you do next?', because: 'You believe they understand the fee. You\'ve only seen the drop-off.' },
+      { q: 'Where did the last new user hear about the DEX, and what made them try it that day?', ask: 'The last new DEX you tried, how did you hear about it, and what made you actually try it that day?', because: 'You listed channels you post in, not channels users came from.' },
+      { q: 'What brings a user back after they left?', ask: 'Ever gone back to a DEX you\'d dropped? What happened that made you go back?', because: 'Nothing under WHAT I\'VE SEEN covers a return.' },
     ],
     dont_ask: ['Would you use a duration slider?', 'How much would you pay for lower slippage?', 'Do you like the receipt?', 'Anything that names TWAP before they do', 'Is Jupiter better?'],
   }));
 }
 
 // ---------- Column 6: the interviewer ----------
-export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'main' | 'followup' | 'close' | 'open' };
-export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null };
+export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'open' | 'main' | 'followup' | 'close' };
+export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string };
 
-const INT_SYS = (brief: Brief, item: Unknown) => `You are interviewing one user of ${brief.project} (${brief.one_line}) in a short chat. You know the space, so you don't explain it. You ask about them, never about the product's features.
+// The interviewer is told the topic of the unknown, never the founder's belief or the "because" line.
+const INT_SYS = (brief: Brief, item: Unknown | null, who: string, earlier: string) => `You are running a short chat interview with one user for ${brief.project} (${brief.one_line}). You know this world, so you don't explain it and you don't sound like a textbook. You ask about their life and what they did, never about the product's features, and you never pitch.
 
-The current question you are trying to answer for the founder: "${item.q}"
+Who you're talking to, from what they've said so far: ${who || 'not known yet'}
+${earlier ? `What they told you earlier, in short:\n${earlier}` : ''}
+${item ? `What you are trying to learn now: "${item.q}"` : 'You are still on the opening question, getting a picture of how this fits their week.'}
 
-You never ask: ${brief.dont_ask.map(d => `"${d}"`).join(', ')}.
+You never ask: ${brief.dont_ask.map(d => `"${d}"`).join(', ')}. Never a "would you", never "how often", never "do you like", never a question about the future.
 
-Given the user's last answer, decide one of:
-- "followup": the answer was short, vague, or mentioned something specific worth one more question. Quote back their words in quotes, then ask for the last time it happened or what it looked like. One question, under 25 words.
-- "next": the answer already has a specific story, or a follow-up wouldn't get more. Say nothing.
+Read their last answer and choose one:
+- "followup": the answer was short, general ("usually", "I never", "it's fine"), or mentioned something specific worth one more step. Then ask ONE plain probe, in their words. Use one of these shapes and nothing fancier:
+  "What happened next?" · "When was the last time that happened?" · "Tell me an example." · "Walk me through exactly what happened." · "Help me understand that better." · "Why do you think that is?"
+  You may open with a short callback to their own words in quotes, then the probe. Under 20 words in total.
+- "next": the answer already has a specific past event with what they did and what came of it. Say nothing, move on. Silence is fine; don't rescue.
 - "clarify": you can't tell what they meant. One short question.
 
 Return JSON: {"action": "followup"|"next"|"clarify", "say": string}`;
 
-export function mainQuestion(brief: Brief, i: number) {
-  return brief.unknowns[i].ask || brief.unknowns[i].q;
+export function openerQuestion(brief: Brief) { return brief.opener; }
+export function mainQuestion(brief: Brief, i: number) { return brief.unknowns[i].ask || brief.unknowns[i].q; }
+
+function earlierSummary(transcript: Turn[], upto: number) {
+  // the user's earlier answers, one line each, so the interviewer can call back
+  return transcript.filter(t => t.role === 'user' && (t.item ?? -1) < upto).map(t => `- (${t.item === -1 || t.item == null ? 'opener' : 'q' + ((t.item ?? 0) + 1)}) ${t.text.slice(0, 140)}`).join('\n');
 }
-export function decideFollowup(brief: Brief, i: number, lastAnswer: string, hadFollowup: boolean) {
+
+export function decideFollowup(brief: Brief, i: number, transcript: Turn[], lastAnswer: string, hadFollowup: boolean, who: string) {
   if (hadFollowup) return Promise.resolve({ data: { action: 'next' as const, say: '' }, cost_cents: 0, balance: null, tokens: { in: 0, out: 0 } });
-  return json<{ action: 'followup' | 'next' | 'clarify'; say: string }>(INT_SYS(brief, brief.unknowns[i]), `User's answer: """${lastAnswer}"""`, () => {
-    const short = lastAnswer.trim().split(/\s+/).length < 12;
-    return short ? { action: 'followup', say: `You said "${lastAnswer.trim().slice(0, 40)}". When was the last time that happened, and what did you do?` } : { action: 'next', say: '' };
+  const item = i >= 0 ? brief.unknowns[i] : null;
+  return json<{ action: 'followup' | 'next' | 'clarify'; say: string }>(INT_SYS(brief, item, who, earlierSummary(transcript, i)), `Their last answer: """${lastAnswer}"""`, () => {
+    const words = lastAnswer.trim().split(/\s+/).length;
+    return words < 14 ? { action: 'followup', say: 'What happened next?' } : { action: 'next', say: '' };
   });
+}
+
+// ---------- Who this was: one line from screener + opener ----------
+const WHO_SYS = `From a user's screener answers and their answer to an opening question, write one line describing who they are, in plain words, third person, no name, no guessed gender, under 20 words. Facts they gave only. Return JSON: {"who": string}`;
+export function makeWho(screener: { q: string; a: string }[], openerAnswer: string) {
+  return json<{ who: string }>(WHO_SYS, `Screener:\n${screener.map(s => `${s.q} → ${s.a}`).join('\n')}\nOpening answer: """${openerAnswer}"""`, () => ({ who: screener.map(s => s.a).join(', ') + (openerAnswer ? `; ${openerAnswer.slice(0, 60)}` : '') }));
 }
 
 // ---------- Column 9: one-session report ----------
 export type Report = {
+  who: string;
   items: { i: number; status: 'answered' | 'opened' | 'thin' | 'not_asked'; claim: string; quote: string; turn: number | null }[];
-  change_if_true: string; still_open: number[];
+  surprising: string; change_if_true: string; still_open: number[];
 };
-const REP_SYS = (brief: Brief) => `You write a one-session research report for the founder of ${brief.project}. One interview only. Never claim more than one person said.
+const REP_SYS = (brief: Brief) => `You write a one-session research report for the founder of ${brief.project}. One interview, one person. You never say more than one person said. You separate what they said from what you make of it, and you base every line on the transcript or you leave it out.
 
-The five questions, in order (i = zero-based index):
+The five questions the founder wanted answered, in order (i = zero-based index):
 ${brief.unknowns.map((u, i) => `i=${i} (question ${i + 1}): ${u.q}`).join('\n')}
 
-For each question return a status:
-- "answered": the user gave a specific past event that answers it
-- "opened": they said something relevant but not a full answer
-- "thin": they answered in general terms, no specific event
-- "not_asked": the interview never reached it or it didn't apply to them
-And: "claim": one sentence, what this one person's answer says. Refer to them as "they" or by handle, never guess a gender (e.g. "They thought the 2% was slippage"), "quote": their exact words, verbatim, shortest that carries it, "turn": the index of the transcript turn the quote comes from (integer) or null.
+Return JSON:
+{"who": string, "items": [{"i": 0, "status": "...", "claim": "...", "quote": "...", "turn": 3}, ... exactly 5], "surprising": string, "change_if_true": string, "still_open": [numbers]}
 
-Then "change_if_true": one sentence, what the founder should change in the product if this one answer holds for more people. Concrete, about the product, not about research.
-"still_open": the question numbers (1-based) that are thin or not asked.
+who: one line, who this person is from what they said, third person, they/them or no pronoun, under 20 words.
+For each question:
+- status: "answered" = a specific past event that answers it; "opened" = something relevant but not a full answer; "thin" = general terms only, no specific event; "not_asked" = never reached, or didn't apply to them.
+- claim: one sentence, what this one person's answer says. "They" or nothing, never a guessed gender. Not a lesson, not a fix. If status is thin or not_asked, say so plainly.
+- quote: their exact words, verbatim, the shortest span that carries it. Empty if none.
+- turn: the transcript turn index the quote is from (integer), or null.
+surprising: one sentence on anything surprising or contradictory in what they said, or "Nothing that contradicts the paste." Base it on the transcript.
+change_if_true: one sentence. If this one answer holds for more people, what the founder should change in the product. Concrete, about the product, not about research. Only if the transcript supports it; otherwise "Too thin to say."
+still_open: 1-based numbers of the questions that are thin or not asked.
 
-Return JSON: {"items":[{"i":0,"status":"...","claim":"...","quote":"...","turn":3}, ...5], "change_if_true": "...", "still_open": [2,5]}
-"i" is the zero-based index of the question (0 to 4), in order. "still_open" uses 1-based question numbers.
-Plain English. No consultancy words. No praise.`;
+Plain English. Short. No consultancy words. No praise, no "validates", no "confirms". One person is one person.`;
 
-export async function makeReport(brief: Brief, transcript: Turn[]) {
+export async function makeReport(brief: Brief, transcript: Turn[], who: string) {
   const t = transcript.map((x, i) => `[${i}] ${x.role}: ${x.text}`).join('\n');
-  const r = await json<Report>(REP_SYS(brief), `Transcript:\n${t}`, () => ({
+  const r = await json<Report>(REP_SYS(brief), `Who: ${who || 'unknown'}\nTranscript:\n${t}`, () => ({
+    who: who || 'unknown',
     items: brief.unknowns.map((_, i) => {
       const ans = transcript.map((x, idx) => ({ x, idx })).filter(({ x }) => x.role === 'user' && x.item === i);
       if (!ans.length) return { i, status: 'not_asked' as const, claim: 'Not reached.', quote: '', turn: null };
       const long = ans.find(a => a.x.text.split(/\s+/).length > 12) ?? ans[0];
       const status = long.x.text.split(/\s+/).length > 12 ? 'answered' as const : 'thin' as const;
-      return { i, status, claim: `One person said: ${long.x.text.slice(0, 80)}`, quote: long.x.text.slice(0, 120), turn: long.idx };
+      return { i, status, claim: `They said: ${long.x.text.slice(0, 80)}`, quote: long.x.text.slice(0, 120), turn: long.idx };
     }),
-    change_if_true: 'Explain the fee on the receipt before the ticket asks for a duration.',
+    surprising: 'Nothing that contradicts the paste.',
+    change_if_true: 'Too thin to say.',
     still_open: brief.unknowns.map((_, i) => i + 1).filter(n => !transcript.some(x => x.role === 'user' && x.item === n - 1)),
   }));
-  // models drift to 1-based; if no item claims 0 and one claims 5, shift
   const items = r.data.items ?? [];
   if (items.length && !items.some(x => x.i === 0) && items.some(x => x.i === brief.unknowns.length)) items.forEach(x => x.i -= 1);
   items.sort((a, b) => a.i - b.i);
   r.data.items = items.map(x => ({ ...x, claim: x.claim ?? '', quote: x.quote ?? '' }));
+  r.data.who = r.data.who || who;
   return r;
 }

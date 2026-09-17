@@ -18,8 +18,13 @@
 
 <div id="step2" style="display:none">
   <h2>2 · What you don't know yet</h2>
-  <p class="small muted">Five, ranked by how much rides on it and how little evidence you gave. Reorder, rewrite, kill, add. The list is the brief. The interviewer asks these and nothing under "don't ask".</p>
+  <p class="small muted">Five, ranked by how much rides on it and how little evidence you gave, ordered so the chat zooms in. Each has the question you want answered and the words the interviewer will use. Reorder, rewrite, kill, add. The list is the brief.</p>
   <div class="card"><div class="row"><b id="pname"></b><span class="muted small" id="pline"></span></div></div>
+  <h2>Who we'll ask about first</h2>
+  <p class="small muted">Two taps before the chat, then one open question. Life first, not the product. This is where the person comes from in the report.</p>
+  <div class="card" id="screener"></div>
+  <div class="card"><div class="small muted" style="margin-bottom:4px">the chat opens with</div><textarea id="opener" rows="2" style="min-height:0"></textarea></div>
+  <h2>The five</h2>
   <div class="card" id="unknowns"></div>
   <div class="row"><button class="ghost sm" id="add">+ add one</button></div>
   <h2>Don't ask</h2>
@@ -36,10 +41,12 @@ $('#show').onclick=()=>{const p=$('#prompt');p.style.display=p.style.display==='
 $('#example').onclick=()=>{$('#paste').value=EXAMPLE};
 $('#read').onclick=async()=>{$('#read').disabled=true;$('#read').textContent='Reading…';const r=await fetch('/api/brief',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paste:$('#paste').value})}).then(r=>r.json());brief=r.brief;render();$('#step1').style.display='none';$('#step2').style.display='block'};
 function render(){$('#pname').textContent=brief.project;$('#pline').textContent=brief.one_line;
+ const sc=$('#screener');sc.innerHTML='';(brief.screener||[]).forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><input class="sq"><div class="small muted" style="margin-top:4px">options, comma separated: <input class="so" style="font-size:12.5px;padding:4px 6px"></div></div>`;d.querySelector('.sq').value=x.q;d.querySelector('.so').value=x.options.join(', ');d.querySelector('.sq').oninput=e=>x.q=e.target.value;d.querySelector('.so').oninput=e=>x.options=e.target.value.split(',').map(v=>v.trim()).filter(Boolean);sc.appendChild(d)});
+ $('#opener').value=brief.opener||'';$('#opener').oninput=e=>brief.opener=e.target.value;
  const u=$('#unknowns');u.innerHTML='';brief.unknowns.forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><textarea rows="2" style="min-height:0"></textarea><div class="because">because: <span></span></div><div class="small muted" style="margin-top:4px">the interviewer opens with: <input class="ask" style="font-size:12.5px;padding:4px 6px"></div></div><div class="ctl"><button data-a="up">▲</button><button data-a="down">▼</button><button data-a="kill">×</button></div>`;d.querySelector('textarea').value=x.q;d.querySelector('.ask').value=x.ask||'';d.querySelector('.ask').oninput=e=>x.ask=e.target.value;d.querySelector('.because span').textContent=x.because;d.querySelector('textarea').oninput=e=>x.q=e.target.value;d.querySelectorAll('button').forEach(b=>b.onclick=()=>{const a=b.dataset.a;if(a==='kill')brief.unknowns.splice(i,1);if(a==='up'&&i>0)[brief.unknowns[i-1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i-1]];if(a==='down'&&i<brief.unknowns.length-1)[brief.unknowns[i+1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i+1]];render()});u.appendChild(d)});
  const dl=$('#dont');dl.innerHTML='';brief.dont_ask.forEach(x=>{const li=document.createElement('li');li.textContent=x;dl.appendChild(li)})}
 $('#add').onclick=()=>{brief.unknowns.push({q:'',ask:'',because:'yours, no gap named'});render()};
-$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim());sessionStorage.setItem('brief',JSON.stringify(brief));const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500})}).then(r=>r.json());location.href='/round/'+r.id};
+$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim());sessionStorage.setItem('brief',JSON.stringify(brief));const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste:$('#paste').value})}).then(r=>r.json());location.href='/round/'+r.id};
 const EXAMPLE=`PROJECT: Streamswap, a Solana DEX where you sell a big bag over time instead of in one swap, for traders holding more than the pool can absorb at once
 STAGE: live on mainnet since July, one pair with real volume, duration control and receipt shipped, limit orders not yet
 WHO USES IT: about 40 wallets have swapped, 6 came back more than once, known from the indexer
