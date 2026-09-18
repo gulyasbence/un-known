@@ -17,8 +17,9 @@ export function priceRound(interviews: number, bounty_cents: number) {
 }
 
 // "prep": the product's own key (env). "round": the wallet's key, whose balance is what buyAndActivate filled.
+// TEST_ON_PREP_KEY=1 makes rounds spend from the product key too (testing), while the fund button still runs on chain.
 export async function apiKey(scope: 'prep' | 'round' = 'round'): Promise<string | null> {
-  if (scope === 'round' && chain.account) return chain.deriveApiKey();
+  if (scope === 'round' && chain.account && !process.env.TEST_ON_PREP_KEY) return chain.deriveApiKey();
   if (process.env.ORBIO_API_KEY) return process.env.ORBIO_API_KEY;
   if (chain.account) return chain.deriveApiKey();
   return null;
