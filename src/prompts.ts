@@ -72,7 +72,7 @@ export function makeBrief(paste: string) {
       { q: 'What brings a user back after they left?', ask: 'Ever gone back to a DEX you\'d dropped? What happened that made you go back?', because: 'Nothing under WHAT I\'VE SEEN covers a return.' },
     ],
     dont_ask: ['Would you use a duration slider?', 'How much would you pay for lower slippage?', 'Do you like the receipt?', 'Anything that names TWAP before they do', 'Is Jupiter better?'],
-  }));
+  }), 'prep');
 }
 
 // ---------- Column 6: the interviewer ----------

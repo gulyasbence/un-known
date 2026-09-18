@@ -21,7 +21,7 @@ app.get('/s/:token', page('session.html'));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
 app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT }));
-app.get('/api/health', async c => c.json({ model: live ? MODEL : 'mock', wallet: await balances().catch(e => ({ error: String(e) })), gateway: await gatewayBalance().catch(() => null) }));
+app.get('/api/health', async c => c.json({ model: live ? MODEL : 'mock', wallet: await balances().catch(e => ({ error: String(e) })), round_key: await gatewayBalance('round').catch(() => null), prep_key: await gatewayBalance('prep').catch(() => null) }));
 // One invite link per round. Opening it spawns a session.
 app.get('/r/:id', async c => {
   const r = getRound(c.req.param('id'));

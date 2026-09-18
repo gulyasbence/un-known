@@ -16,13 +16,15 @@ export function priceRound(interviews: number, bounty_cents: number) {
   return { inference_cents, bounties_cents, fee_cents, total_cents: inference_cents + bounties_cents + fee_cents };
 }
 
-export async function apiKey(): Promise<string | null> {
+// "prep": the product's own key (env). "round": the wallet's key, whose balance is what buyAndActivate filled.
+export async function apiKey(scope: 'prep' | 'round' = 'round'): Promise<string | null> {
+  if (scope === 'round' && chain.account) return chain.deriveApiKey();
   if (process.env.ORBIO_API_KEY) return process.env.ORBIO_API_KEY;
   if (chain.account) return chain.deriveApiKey();
   return null;
 }
-export async function gatewayBalance(): Promise<{ available: number; used: number } | null> {
-  const key = await apiKey(); if (!key) return null;
+export async function gatewayBalance(scope: 'prep' | 'round' = 'round'): Promise<{ available: number; used: number } | null> {
+  const key = await apiKey(scope); if (!key) return null;
   const r = await fetch((process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1') + '/key', { headers: { authorization: `Bearer ${key}` } });
   if (!r.ok) return null;
   const j: any = await r.json();

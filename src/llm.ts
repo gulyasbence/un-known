@@ -1,19 +1,25 @@
 import OpenAI from 'openai';
 import { apiKey } from './money.js';
 export const MODEL = process.env.ORBIO_MODEL || 'anthropic/claude-sonnet-4.5';
-let client: OpenAI | null = null;
+const BASE = process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1';
+const mk = (key: string) => new OpenAI({ apiKey: key, baseURL: BASE, defaultHeaders: { 'HTTP-Referer': 'https://orbio.so/build', 'X-Title': 'Five Unknowns' } });
+
+// Two keys. "prep" is the product's own key (the brief, on us). "round" is the wallet-derived key whose balance the founder funded on chain.
+// Without a wallet, "round" falls back to the product key so the flow still runs.
+let prep: OpenAI | null = null, round: OpenAI | null = null;
 export let live = false;
 export async function init() {
-  const key = await apiKey();
-  if (key) { client = new OpenAI({ apiKey: key, baseURL: process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1', defaultHeaders: { 'HTTP-Referer': 'https://orbio.so/build', 'X-Title': 'Five Unknowns' } }); live = true; }
+  const k = await apiKey('prep'); if (k) prep = mk(k);
+  const r = await apiKey('round'); round = r ? mk(r) : prep;
+  live = !!(prep || round);
 }
-
+export type Scope = 'prep' | 'round';
 export type LlmResult<T> = { data: T; cost_cents: number; balance: string | null; tokens: { in: number; out: number } };
 
-// One call, JSON out. Cost from the balance header when Orbio sends it, else a token estimate.
-export async function json<T>(system: string, user: string, mock: () => T): Promise<LlmResult<T>> {
+export async function json<T>(system: string, user: string, mock: () => T, scope: Scope = 'round'): Promise<LlmResult<T>> {
+  const client = scope === 'prep' ? (prep ?? round) : (round ?? prep);
   if (!client) return { data: mock(), cost_cents: 0, balance: null, tokens: { in: 0, out: 0 } };
-  const call = () => client!.chat.completions.create({
+  const call = () => client.chat.completions.create({
     model: MODEL, temperature: 0.4,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     response_format: { type: 'json_object' },
@@ -22,7 +28,6 @@ export async function json<T>(system: string, user: string, mock: () => T): Prom
   const { data: res, response } = out;
   const text = res.choices[0]?.message?.content ?? '{}';
   const tokens = { in: res.usage?.prompt_tokens ?? 0, out: res.usage?.completion_tokens ?? 0 };
-  // Sonnet-class rate as fallback: $3/M in, $15/M out
   const est = tokens.in * 0.0003 + tokens.out * 0.0015;
   const balance = response.headers.get('x-orbio-balance');
   const cost_cents = Math.max(1, Math.round(est));
