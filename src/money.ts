@@ -41,7 +41,7 @@ export async function fund(roundId: string, interviews: number, bounty_cents: nu
   // Only the inference part is bought and activated. Bounties are paid by hand this week and shown on the receipt.
   const r = await chain.buyAndActivate(p.inference_cents / 100);
   if (r.status !== 'success') throw new Error('buyAndActivate reverted: ' + r.tx);
-  const gb = await gatewayBalance();
+  const gb = await gatewayBalance('round');
   const balance_cents = Math.round(((gb?.available ?? r.quoted_credit) * 100));
   db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), r.tx, balance_cents, p.bounties_cents, roundId);
   return { tx: r.tx, balance_cents, explorer: r.explorer, note: `bought ${r.quoted_credit.toFixed(2)} CREDIT for ${r.quoted_usdg.toFixed(2)} USDG and activated it` };
