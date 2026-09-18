@@ -1,13 +1,27 @@
-app = "five-unknowns"
-primary_region = "ams"
+# fly.toml app configuration file generated for five-unknowns on 2026-09-17T19:40:39-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'five-unknowns'
+primary_region = 'ams'
+
 [build]
 [env]
-  PORT = "3010"
+  PORT = '3010'
+
+[[mounts]]
+  source = 'data'
+  destination = '/app/data'
+
 [http_service]
   internal_port = 3010
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   min_machines_running = 1
-[mounts]
-  source = "data"
-  destination = "/app/data"
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
