@@ -34,17 +34,25 @@ export async function gatewayBalance(scope: 'prep' | 'round' = 'round'): Promise
 export async function fund(roundId: string, interviews: number, bounty_cents: number): Promise<Fund> {
   const p = priceRound(interviews, bounty_cents);
   if (!live) {
-    console.log(`[money] stub: would approve USDG and buyAndActivate ${(p.inference_cents / 100).toFixed(2)} for the round, bounties ${(p.bounties_cents / 100).toFixed(2)} held for hand-pay`);
+    console.log(`[money] stub: would check the key's balance and buyAndActivate the shortfall for ${(p.inference_cents / 100).toFixed(2)}; bounties ${(p.bounties_cents / 100).toFixed(2)} held for hand-pay`);
     db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), 'stub', p.inference_cents, p.bounties_cents, roundId);
     return { tx: 'stub', balance_cents: p.inference_cents, note: 'stub, no wallet configured' };
   }
-  // Only the inference part is bought and activated. Bounties are paid by hand this week and shown on the receipt.
-  const r = await chain.buyAndActivate(p.inference_cents / 100);
-  if (r.status !== 'success') throw new Error('buyAndActivate reverted: ' + r.tx);
-  const gb = await gatewayBalance('round');
-  const balance_cents = Math.round(((gb?.available ?? r.quoted_credit) * 100));
-  db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), r.tx, balance_cents, p.bounties_cents, roundId);
-  return { tx: r.tx, balance_cents, explorer: r.explorer, note: `bought ${r.quoted_credit.toFixed(2)} CREDIT for ${r.quoted_usdg.toFixed(2)} USDG and activated it` };
+  // One key, one balance at the gateway. Buy only what this round is short of.
+  const before = await gatewayBalance('round');
+  const have_cents = Math.round((before?.available ?? 0) * 100);
+  const short_cents = p.inference_cents - have_cents;
+  let tx = 'none', note = `key already holds $${(have_cents / 100).toFixed(2)}, enough for this round, nothing bought`, explorer: string | undefined;
+  if (short_cents > 0) {
+    const r = await chain.buyAndActivate(short_cents / 100);
+    if (r.status !== 'success') throw new Error('buyAndActivate reverted: ' + r.tx);
+    tx = r.tx; explorer = r.explorer;
+    note = `key held $${(have_cents / 100).toFixed(2)}; bought ${r.quoted_credit.toFixed(2)} CREDIT for ${r.quoted_usdg.toFixed(2)} USDG and activated it`;
+  }
+  const after = await gatewayBalance('round');
+  const balance_cents = Math.round((after?.available ?? have_cents / 100) * 100);
+  db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), tx, balance_cents, p.bounties_cents, roundId);
+  return { tx, balance_cents, explorer, note };
 }
 export function charge(roundId: string, cents: number) {
   db.prepare('update rounds set balance_cents = balance_cents - ? where id=?').run(cents, roundId);

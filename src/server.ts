@@ -65,14 +65,16 @@ function sweep(roundId: string) {
     saveSession(s);
   }
 }
-app.get('/api/rounds/:id', c => {
+app.get('/api/rounds/:id', async c => {
   const r0 = getRound(c.req.param('id'));
   if (!r0) return c.json({ error: 'no round' }, 404);
   sweep(r0.id);
   const r = getRound(r0.id)!;
   const sessions = (db.prepare('select * from sessions where round_id=? order by created_at').all(r.id) as any[])
     .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report, abandoned: !!JSON.parse(s.state).abandoned }));
-  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions });
+  const spent_cents = sessions.reduce((a, s) => a + (s.cost_cents || 0), 0);
+  const key = r.funded_at ? await gatewayBalance('round').catch(() => null) : null;
+  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null });
 });
 app.post('/api/rounds/:id/fund', async c => {
   const r = getRound(c.req.param('id'));
