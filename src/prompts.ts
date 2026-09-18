@@ -33,7 +33,7 @@ Two layers. "q" is what the founder wants to learn, written for the founder. "as
 
 one_line: what the product is and for whom, one sentence from the paste. Not a diagnosis.
 
-screener: two closed questions the user taps before the chat, so the founder knows who answered. Each has 3 to 5 short options. The first is about how long or how deep they are in this world (e.g. "How long have you been trading on-chain?"). The second is about recent behaviour in the product's area (e.g. "Last week, what did you do on-chain?"), not about the product itself. Options are plain, no jargon the user might not know.
+screener: two closed questions the user taps before the chat, so the founder knows who answered. Each has 3 to 5 short options. The second one is multi-select (they tap all that apply), so its options must be things that can be true at the same time. The first is about how long or how deep they are in this world (e.g. "How long have you been trading on-chain?"). The second is about recent behaviour in the product's area (e.g. "Last week, what did you do on-chain?"), not about the product itself. Options are plain, no jargon the user might not know.
 
 opener: one open question that starts the chat. Life first, not the product. It zooms out: how this world fits into their week, when they do the thing the product is about, what they're paying attention to right now. Example: "How does trading fit into your week? When do you open your wallet, and what makes you go on-chain?" It must not name the product.
 
@@ -46,7 +46,7 @@ unknowns, the "q" side:
 unknowns, the "ask" side, the rules that matter most:
 - Open, past tense, anchored in a real event: "Think of the last time you… Walk me through what happened." Never "would you", never "how often do you", never "how common do you think", never "do you like".
 - It must not be answerable in one word. "When did you last…?" invites "yesterday". Ask for the story: what they were doing, what they did, what happened next.
-- It must not assume anything about them: not that they used the product, came back, liked it, or hold a position. It has to work for someone who used it once or never.
+- It must not assume anything about them: not that they used the product, opened any app, came back, liked it, or hold a position. It has to work for someone who has never heard of the product. Bad: "Think back to a stretch when you weren't opening the app much." Good: "Think of a stretch when you dropped a tool or a habit you'd been using for this. What was going on?"
 - Plain and casual, the way a person asks in a chat. Under 30 words. No textbook phrasing, no "can you describe your experience with".
 - It must not reveal what the founder hopes to hear or what the founder is building next.
 - Do not name a feature the user hasn't mentioned.
@@ -92,7 +92,7 @@ Read their last answer and choose one. The default is "next". A follow-up costs 
 - "next": the answer already has a specific past event, what they did, and what came of it. Or it's clear they have no story here. Say nothing, move on. Silence is fine; don't rescue.
 - "followup": ONLY if the answer was short, or general ("usually", "I never", "it's fine"), or if it named something specific that the next question will not reach. Then ask ONE plain probe, in their words. Use one of these shapes and nothing fancier:
   "What happened next?" · "When was the last time that happened?" · "Tell me an example." · "Walk me through exactly what happened." · "Help me understand that better." · "Why do you think that is?"
-  You may open with a short callback to their own words in quotes, then the probe. Under 20 words in total.
+  If their answer was short or general, START with a quote-back of two to six of their exact words in quotes, then the probe: "You said \"figuring out if I could\". What told you yes or no?" Vary the probe; don't use "walk me through" twice in a row. Under 20 words in total.
 - "clarify": you can't tell what they meant. One short question.
 
 Return JSON: {"action": "followup"|"next"|"clarify", "say": string}`;
@@ -122,7 +122,7 @@ export function makeWho(screener: { q: string; a: string }[], openerAnswer: stri
 
 // ---------- Column 9: one-session report ----------
 export type Report = {
-  who: string;
+  who: string; takeaways?: string[];
   items: { i: number; status: 'answered' | 'opened' | 'thin' | 'not_asked'; claim: string; quote: string; turn: number | null }[];
   surprising: string; change_if_true: string; still_open: number[];
 };
@@ -132,12 +132,13 @@ The five questions the founder wanted answered, in order (i = zero-based index):
 ${brief.unknowns.map((u, i) => `i=${i} (question ${i + 1}): ${u.q}`).join('\n')}
 
 Return JSON:
-{"who": string, "items": [{"i": 0, "status": "...", "claim": "...", "quote": "...", "turn": 3}, ... exactly 5], "surprising": string, "change_if_true": string, "still_open": [numbers]}
+{"who": string, "takeaways": [string, string, string], "items": [{"i": 0, "status": "...", "claim": "...", "quote": "...", "turn": 3}, ... exactly 5], "surprising": string, "change_if_true": string, "still_open": [numbers]}
 
 who: one line, who this person is from what they said, third person, they/them or no pronoun, under 20 words.
+takeaways: the three things the founder should walk away with from this one person, each under 15 words, plain, specific, no hedging words. These are what gets read; the rest is the evidence behind them.
 For each question:
 - status: "answered" = a specific past event that answers it; "opened" = something relevant but not a full answer; "thin" = general terms only, no specific event; "not_asked" = never reached, or didn't apply to them.
-- claim: one sentence, what this one person's answer says. "They" or nothing, never a guessed gender. Not a lesson, not a fix. If status is thin or not_asked, say so plainly.
+- claim: one short sentence, under 18 words, what this one person's answer says. The quote carries the detail, the claim doesn't repeat it. "They" or nothing, never a guessed gender. Not a lesson, not a fix. If status is thin or not_asked, say so plainly.
 - quote: their exact words, verbatim, the shortest span that carries it. Empty if none.
 - turn: the transcript turn index the quote is from (integer), or null.
 surprising: one sentence on anything surprising or contradictory in what they said, or "Nothing that contradicts the paste." Base it on the transcript.
@@ -149,7 +150,7 @@ Plain English. Short. No consultancy words. No praise, no "validates", no "confi
 export async function makeReport(brief: Brief, transcript: Turn[], who: string) {
   const t = transcript.map((x, i) => `[${i}] ${x.role}: ${x.text}`).join('\n');
   const r = await json<Report>(REP_SYS(brief), `Who: ${who || 'unknown'}\nTranscript:\n${t}`, () => ({
-    who: who || 'unknown',
+    who: who || 'unknown', takeaways: [],
     items: brief.unknowns.map((_, i) => {
       const ans = transcript.map((x, idx) => ({ x, idx })).filter(({ x }) => x.role === 'user' && x.item === i);
       if (!ans.length) return { i, status: 'not_asked' as const, claim: 'Not reached.', quote: '', turn: null };

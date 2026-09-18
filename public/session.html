@@ -2,7 +2,7 @@
 <body><main style="max-width:560px">
 <div id="deal"></div>
 <div id="chat" style="display:none">
- <div class="row" style="margin-bottom:12px"><div class="dots" id="dots"></div><span class="small muted" id="prog"></span><button class="ghost sm right" id="stop">stop here</button></div>
+ <div class="row" style="position:sticky;top:0;background:var(--bg);padding:10px 0;margin-bottom:8px;z-index:2"><div style="flex:1"><div style="height:6px;background:#e4e1d8;border-radius:3px"><div id="bar" style="height:6px;width:0;background:var(--ink);border-radius:3px;transition:width .3s"></div></div><div class="small muted" id="prog" style="margin-top:4px"></div></div><button class="ghost sm" id="stop">stop here</button></div>
  <div class="chat" id="msgs"></div>
  <div class="row" id="inrow"><input id="in" placeholder="type your answer"><button id="send">Send</button></div>
  <div id="done" style="display:none" class="card receipt"></div>
@@ -12,13 +12,13 @@ const $=s=>document.querySelector(s);const tok=location.pathname.split('/')[2];l
 async function load(){S=await fetch('/api/s/'+tok).then(r=>r.json());if(S.state.done||S.transcript.length>1)start();else deal()}
 let SCREEN=[];
 function deal(){$('#deal').innerHTML=`<div class="card"><h1 style="font-size:19px">${S.project} wants to hear from you</h1><p class="muted">${S.n} questions · about ${S.minutes} minutes · $${(S.bounty_cents/100).toFixed(2)} when you're done</p><p class="small muted">No signup. Your answers go to the founder with your handle, nothing else.</p>
-${(S.screener||[]).map((q,i)=>`<div style="margin:10px 0 4px"><div class="small" style="margin-bottom:4px">${q.q}</div><div class="row" data-i="${i}">${q.options.map(o=>`<button class="ghost sm" data-o="${o.replace(/"/g,'&quot;')}">${o}</button>`).join('')}</div></div>`).join('')}
+${(S.screener||[]).map((q,i)=>`<div style="margin:10px 0 4px"><div class="small" style="margin-bottom:4px">${q.q}${i===1?' <span class="muted">(all that apply)</span>':''}</div><div class="row" data-i="${i}" data-multi="${i===1?1:0}">${q.options.map(o=>`<button class="ghost sm" data-o="${o.replace(/"/g,'&quot;')}">${o}</button>`).join('')}</div></div>`).join('')}
 <div class="row" style="margin-top:12px"><input id="handle" placeholder="your handle (optional)" style="max-width:220px"><button id="start">Start</button></div></div>`;
- document.querySelectorAll('#deal .row[data-i]').forEach(row=>row.querySelectorAll('button').forEach(b=>b.onclick=()=>{row.querySelectorAll('button').forEach(x=>{x.style.background='';x.style.color=''});b.style.background='#1a1a18';b.style.color='#fff';SCREEN[+row.dataset.i]=b.dataset.o}));
+ document.querySelectorAll('#deal .row[data-i]').forEach(row=>row.querySelectorAll('button').forEach(b=>b.onclick=()=>{const multi=row.dataset.multi==='1';if(!multi){row.querySelectorAll('button').forEach(x=>{x.style.background='';x.style.color=''})}const on=b.style.background!=='';if(multi&&on){b.style.background='';b.style.color=''}else{b.style.background='#1a1a18';b.style.color='#fff'}const picked=[...row.querySelectorAll('button')].filter(x=>x.style.background!=='').map(x=>x.dataset.o);SCREEN[+row.dataset.i]=picked.join(', ')}));
  $('#start').onclick=()=>{const need=(S.screener||[]).length;if(SCREEN.filter(Boolean).length<need){$('#start').textContent='Pick an answer above first';setTimeout(()=>$('#start').textContent='Start',1500);return}S.handle=$('#handle').value.trim()||null;start()}}
 function start(){$('#deal').innerHTML='';$('#chat').style.display='block';render()}
 function render(){const m=$('#msgs');m.innerHTML='';S.transcript.forEach(t=>{const d=document.createElement('div');d.className='msg '+t.role;d.textContent=t.text;m.appendChild(d)});
- $('#dots').innerHTML=Array.from({length:S.n},(_,i)=>`<div class="dot ${i<S.state.item+1||S.state.done?'on':''}"></div>`).join('');$('#prog').textContent=S.state.done?'done':`question ${S.state.item+2} of ${S.n}`;
+ const answered=S.transcript.filter(t=>t.role==='user').length;const pending=S.transcript[S.transcript.length-1].role==='agent'&&!S.state.done?1:0;const est=Math.max(S.n+3,answered+pending+(S.n-(S.state.item+1)));const pct=S.state.done?100:Math.min(96,Math.round(100*answered/est));$('#bar').style.width=pct+'%';$('#prog').textContent=S.state.done?'done':`${S.state.item+2} of ${S.n} questions · ${S.transcript[S.transcript.length-1].kind==='followup'?'one more on this':'a couple of minutes left'}`;
  if(S.state.done){$('#inrow').style.display='none';$('#stop').style.display='none';if(S.receipt){$('#done').style.display='block';$('#done').innerHTML=`Thanks. ${S.receipt.minutes} min · ${S.receipt.asked} asked · $${(S.receipt.bounty_cents/100).toFixed(2)} bounty on its way.`}}
  window.scrollTo(0,document.body.scrollHeight)}
 async function send(){const v=$('#in').value.trim();if(!v)return;$('#in').value='';$('#send').disabled=true;S.transcript.push({role:'user',text:v});render();
