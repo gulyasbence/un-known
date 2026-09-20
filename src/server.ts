@@ -46,7 +46,7 @@ app.get('/r/:id', async c => {
   return c.redirect('/s/' + token);
 });
 
-// Column 3
+// Brief: paste in, five unknowns out
 app.post('/api/brief', async c => {
   let paste = '';
   try { ({ paste } = await c.req.json()); } catch { return c.json({ error: 'Bad request.' }, 400); }
@@ -65,7 +65,7 @@ app.post('/api/brief', async c => {
   }
 });
 
-// Column 4
+// Round: create, price, fund
 app.post('/api/rounds', async c => {
   const { brief, interviews, bounty_cents, paste, prep_cents } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string; prep_cents?: number };
   const rid = id(), key = secret();
@@ -110,7 +110,7 @@ app.post('/api/rounds/:id/fund', async c => {
   return c.json(f);
 });
 
-// Column 6: interviewee. Sessions are spawned by opening /r/:id (one link per round).
+// Interviewee. Sessions are spawned by opening /r/:id (one link per round).
 app.get('/api/s/:token', c => {
   const s = getSession('token', c.req.param('token'));
   if (!s) return c.json({ error: 'no session' }, 404);
@@ -181,7 +181,7 @@ function receipt(s: any, r: any, tr: Turn[], st: State) {
   };
 }
 
-// Column 9: one-session report, written when the session ends
+// One-session report, written when the session ends
 async function writeReport(sid: string) {
   const s = getSession('id', sid)!; const r = getRound(s.round_id)!;
   const rep = await makeReport(r.brief, s.transcript, s.state.who ?? '');
@@ -270,4 +270,4 @@ app.get('/api/sessions/:id', c => {
 
 const port = Number(process.env.PORT || 3010);
 serve({ fetch: app.fetch, port });
-console.log(`five unknowns on http://localhost:${port} · model ${live ? MODEL : 'mock (no key)'} · money ${moneyLive ? 'live on chain 4663' : 'stub'}`);
+console.log(`(un)known on http://localhost:${port} · model ${live ? MODEL : 'mock (no key)'} · money ${moneyLive ? 'live on chain 4663' : 'stub'}`);

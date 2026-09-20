@@ -36,11 +36,11 @@ function buildPaste(R, syn){
   const learn=(B.unknowns||[]).map((u,i)=>`${i+1}. ${u.q||''}`).join('\n');
   const takes=(syn.takeaways||[]).map(t=>`- ${t}`).join('\n')||'- (none)';
   return `I'm the founder of ${B.project||R.project} (${B.one_line||''}).
-I just ran short user interviews through (un)known. Below is the round synthesis — not raw transcripts.
+I just ran short user interviews through (un)known. Below is the round synthesis, not raw transcripts.
 
 Do this:
 1. Write 5 How Might We questions grounded only in what showed up below. Concrete to this product. No generic UX HMWs.
-   Each HMW should name a real tension or unmet need (problem-focused), assume a good answer exists (optimistic), and stay open — no UI control, feature, or solution baked into the question. Save the solution for the bets.
+   Each HMW should name a real tension or unmet need (problem-focused), assume a good answer exists (optimistic), and stay open, with no UI control, feature, or solution baked into the question. Save the solution for the bets.
 2. Then 3 small next bets I could ship or test in a week. Each one sentence. Tied to a takeaway or the "if true, change" line. These can name a concrete move; the HMWs should not.
 3. Call out anything below that is still too thin to act on.
 
@@ -148,7 +148,7 @@ async function load(){
     card.innerHTML=`<div class="row" style="align-items:flex-start">
   <div style="flex:1;min-width:0">
     <div class="sess-title">Session ${n} · ${esc(r.handle||s.handle||'someone')}</div>
-    <div class="small muted">${r.minutes??'—'} min</div>${who}${body}
+    <div class="small muted">${r.minutes??'-'} min</div>${who}${body}
   </div>
   <span class="small sess-open">Open</span>
 </div>`;

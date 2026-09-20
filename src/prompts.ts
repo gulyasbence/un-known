@@ -1,7 +1,7 @@
 import { json } from './llm.js';
 import type { Brief, Unknown } from './db.js';
 
-// ---------- Column 2: the prompt the founder copies into their own AI ----------
+// ---------- The prompt the founder copies into their own AI ----------
 export const COPY_PROMPT = `I'm about to run short interviews with people who use (or should use) my product. Help me get my context into one plain-text paste.
 
 These chats are for things I can't learn by reading analytics, group chats, or comments. I need a person's story about something they did.
@@ -21,7 +21,7 @@ DON'T KNOW: anything the above needed that you couldn't fill
 
 Keep every line short. No headings other than these labels. No advice.`;
 
-// ---------- Column 3: paste in, five unknowns out ----------
+// ---------- Paste in, the five unknowns out ----------
 const BRIEF_SYS = `You turn a founder's project paste into a research brief for short chat interviews with users. The founder wants to find out what they don't know about their users. They do not want their pitch read back to them.
 
 These interviews are for things you cannot learn from analytics, on-chain data, support logs, or public chat without asking a person. If an unknown can be answered by watching public behavior alone, do not include it.
@@ -70,7 +70,7 @@ export async function makeBrief(paste: string) {
   return r;
 }
 
-// ---------- Column 6: the interviewer ----------
+// ---------- The interviewer ----------
 export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'open' | 'main' | 'followup' | 'close' };
 export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string; abandoned?: boolean };
 
@@ -115,7 +115,7 @@ export function makeWho(screener: { q: string; a: string }[], openerAnswer: stri
   return json<{ who: string }>(WHO_SYS, `Screener:\n${screener.map(s => `${s.q} → ${s.a}`).join('\n')}\nOpening answer: """${openerAnswer}"""`, () => ({ who: screener.map(s => s.a).join(', ') + (openerAnswer ? `; ${openerAnswer.slice(0, 60)}` : '') }));
 }
 
-// ---------- Column 9: one-session report ----------
+// ---------- One-session report ----------
 export type Report = {
   who: string; takeaways?: string[];
   items: { i: number; status: 'answered' | 'opened' | 'thin' | 'not_asked'; claim: string; quote: string; turn: number | null }[];
@@ -226,6 +226,6 @@ ${claims || '  (none)'}`;
       ? packs.flatMap(p => p.takeaways || []).slice(0, 5)
       : ['Too thin to synthesize yet.'],
     change_if_true: packs.map(p => p.change_if_true).find(x => x && x !== 'Too thin to say.') || 'Too thin to say.',
-    disagree_or_thin: packs.length < 2 ? 'Only one session so far — nothing to cross-check.' : 'Nothing clear yet — need more sessions.',
+    disagree_or_thin: packs.length < 2 ? 'Only one session so far, nothing to cross-check.' : 'Nothing clear yet, need more sessions.',
   }), 'round');
 }

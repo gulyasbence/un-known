@@ -83,7 +83,7 @@ $('#read').onclick=async()=>{
     const res=await fetch('/api/brief',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paste:$('#paste').value})});
     const r=await res.json().catch(()=>({error:'Brief failed.'}));
     if(!res.ok||r.error){stopWait(tick);alert(r.error||'Brief failed.');return}
-    $('#wait-text').textContent='Brief ready — opening…';
+    $('#wait-text').textContent='Brief ready, opening…';
     sessionStorage.setItem('_brief',JSON.stringify({brief:r.brief,paste:$('#paste').value,prep:r.cost_cents||0}));
     location.href='/brief';
   }catch(e){stopWait(tick);alert('Brief failed.');}
