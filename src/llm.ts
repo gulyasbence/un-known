@@ -30,19 +30,18 @@ export async function json<T>(system: string, user: string, mock: () => T, scope
   const models = [MODEL, MODEL_FALLBACK].filter((m, i, a) => m && a.indexOf(m) === i);
   let lastErr: unknown;
   for (const model of models) {
-    const call = () => client.chat.completions.create({
-      model, temperature: 0.4,
+    // Some models on Orbio are served by providers that reject a temperature parameter and answer
+    // "no provider is currently serving" (Sonnet 5, Sep 2026). Retry without it before giving up on the model.
+    const call = (temp = true) => client.chat.completions.create({
+      model, ...(temp ? { temperature: 0.4 } : {}),
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       response_format: { type: 'json_object' },
     }).withResponse();
     try {
       let out; try { out = await call(); } catch (e) {
-        if (isModelUnavailable(e) && model === MODEL) {
-          // Orbio's capacity for a model flaps; give it one short retry before dropping to the fallback.
-          await new Promise(r => setTimeout(r, 1500));
-          try { out = await call(); } catch (e2) { throw e2; }
+        if (isModelUnavailable(e)) {
+          out = await call(false);   // same model, no temperature
         }
-        else if (isModelUnavailable(e)) throw e;
         else {
           console.warn('[llm] retrying once on', model, (e as Error).message);
           out = await call();
