@@ -90,5 +90,5 @@ function render(){
 render();
 $('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());location.href='/round/'+r.id+'?key='+r.key};
 </script>
-<p class="small muted" style="margin-top:28px">Inference on <a href="https://www.orbio.so/" target="_blank">Orbio</a>.</p>
+<p class="small muted" style="margin-top:28px">Powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank">Orbio</a>.</p>
 </main></body></html>

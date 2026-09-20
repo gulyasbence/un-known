@@ -3,7 +3,7 @@ import { apiKey } from './money.js';
 export const MODEL = process.env.ORBIO_MODEL || 'anthropic/claude-sonnet-5';
 export const MODEL_FALLBACK = process.env.ORBIO_MODEL_FALLBACK || 'anthropic/claude-sonnet-4.5';
 const BASE = process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1';
-const mk = (key: string) => new OpenAI({ apiKey: key, baseURL: BASE, defaultHeaders: { 'HTTP-Referer': 'https://orbio.so/build', 'X-Title': 'Five Unknowns' } });
+const mk = (key: string) => new OpenAI({ apiKey: key, baseURL: BASE, defaultHeaders: { 'HTTP-Referer': 'https://un-known.fly.dev', 'X-Title': '(un)known' } });
 
 // Two keys. "prep" is the product's own key (the brief, on us). "round" is the wallet-derived key whose balance the founder funded on chain.
 // Without a wallet, "round" falls back to the product key so the flow still runs.
