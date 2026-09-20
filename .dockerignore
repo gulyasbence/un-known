@@ -1,0 +1,11 @@
+.git
+node_modules
+.env
+.env.local
+data
+*.db
+.claude
+.agents
+skills-lock.json
+.DS_Store
+docs
