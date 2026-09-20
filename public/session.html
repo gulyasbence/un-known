@@ -59,7 +59,7 @@
   <div class="chat-top">
     <div class="chat-head">
       <div class="chat-project" id="chat-project"></div>
-      <div class="chat-brand"><a href="/">(un)known</a><a class="chat-brand-by" href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">powered by Orbio</a></div>
+      <span class="brandmark"><a class="brand" href="/">(un)known</a><span class="by">powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">Orbio</a></span></span>
     </div>
     <div class="chat-bar-track"><div id="bar" class="chat-bar"></div></div>
   </div>
@@ -85,7 +85,7 @@ function deal(){
     const opts=(q.options||[]).map(o=>`<button type="button" data-o="${o.replace(/"/g,'&quot;')}" aria-pressed="false">${o}</button>`).join('');
     return `<div class="deal-q"><div class="deal-q-label">${label}${hint}</div><div class="deal-opts row" data-i="${i}" data-multi="${multi?1:0}">${opts}</div></div>`;
   }).join('');
-  $('#deal').innerHTML=`<div class="deal"><div class="deal-brand"><div class="chat-brand"><a href="/">(un)known</a><a class="chat-brand-by" href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">powered by Orbio</a></div></div><div class="deal-card">
+  $('#deal').innerHTML=`<div class="deal"><div class="deal-brand"><span class="brandmark"><a class="brand" href="/">(un)known</a><span class="by">powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">Orbio</a></span></span></div><div class="deal-card">
   <h1>${S.project} wants to hear from you</h1>
   <p class="deal-meta">${S.n} questions · about ${S.minutes} minutes</p>
   <p class="deal-note">No signup. Answers go to the founder with your handle.</p>

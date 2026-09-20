@@ -2,7 +2,7 @@
 <body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
 <div class="page-nav">
   <a class="small" href="/">← start over</a>
-  <a class="brand" href="/">(un)known</a>
+  <span class="brandmark"><a class="brand" href="/">(un)known</a><span class="by">powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">Orbio</a></span></span>
 </div>
 
 <h2>Project</h2>
@@ -96,5 +96,4 @@ if(render()){
 $('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());location.href='/round/'+r.id+'?key='+r.key};
 }
 </script>
-<p class="small muted" style="margin-top:28px">Powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank">Orbio</a>.</p>
 </main></body></html>

@@ -296,3 +296,11 @@ button.text-btn:hover, .text-btn:hover{color:var(--text);opacity:1}
 .skel.lg{min-width:min(280px,60vw)}
 .skel-card{height:74px;margin-top:10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--line);animation:skelPulse 1.3s ease-in-out infinite}
 .skel-card.tall{height:150px}
+
+/* Wordmark plus the Orbio credit. One construction on every page. */
+.brandmark{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
+.brandmark .brand{text-decoration:none;color:inherit;border:0}
+.brandmark .by{color:var(--muted);font-size:12px;letter-spacing:-0.01em}
+.brandmark .by a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line)}
+.brandmark .by a:hover{color:var(--text)}
+h1 .brandmark .by{font-size:13px;font-weight:400}
