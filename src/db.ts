@@ -13,8 +13,10 @@ create table if not exists sessions (
 );
 `);
 for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
-export const id = () => Math.random().toString(36).slice(2, 10);
-export const secret = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 32);
+// Ids are public: a round's id is the invite link anyone can open, so they are random, not guessable.
+const rand = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(36).padStart(2, '0')).join('').slice(0, n);
+export const id = () => rand(10);
+export const secret = () => rand(32);
 export const now = () => new Date().toISOString();
 export type Unknown = { q: string; ask?: string; because: string };
 export type Brief = { project: string; one_line: string; screener: { q: string; options: string[] }[]; opener: string; unknowns: Unknown[]; dont_ask: string[] };
