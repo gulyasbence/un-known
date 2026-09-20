@@ -37,9 +37,16 @@ export async function json<T>(system: string, user: string, mock: () => T, scope
     }).withResponse();
     try {
       let out; try { out = await call(); } catch (e) {
-        if (isModelUnavailable(e)) throw e;
-        console.warn('[llm] retrying once on', model, (e as Error).message);
-        out = await call();
+        if (isModelUnavailable(e) && model === MODEL) {
+          // Orbio's capacity for a model flaps; give it one short retry before dropping to the fallback.
+          await new Promise(r => setTimeout(r, 1500));
+          try { out = await call(); } catch (e2) { throw e2; }
+        }
+        else if (isModelUnavailable(e)) throw e;
+        else {
+          console.warn('[llm] retrying once on', model, (e as Error).message);
+          out = await call();
+        }
       }
       const { data: res, response } = out;
       const text = res.choices[0]?.message?.content ?? '{}';
