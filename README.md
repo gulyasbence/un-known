@@ -25,7 +25,7 @@ report  ←  round synthesis  ←  session writeup  ←  the chat
 Founder pages: `/` (paste), `/brief`, `/round/:id`, `/round/:id/report`.
 Interviewee: `/r/:id` spawns a session and redirects to `/s/:token`.
 
-There are no accounts. The round link carries its own key (`/round/:id?key=…`), so it is the only way back to a round and its report. The invite link is the separate one the founder sends out.
+There are no accounts. The round link carries its own key (`/round/:id?key=…`), so it is the only way back to a round and its report. The invite link is the separate one the founder sends out. Every open of the invite link starts a new session, so a round's session count is the number of times it was opened, not the number of people.
 
 ## Orbio
 
@@ -39,9 +39,9 @@ This path has been run for real. Sep 17: 2.10 USDG in, 2.80 CREDIT out, one fill
 
 **One key, one balance.** Funding reads the gateway balance first and buys only the shortfall, so a round that is already covered costs nothing on chain.
 
-**Two keys.** The brief runs on the product's own key and is free to the founder; the round page says "on us". Sessions and reports run on the round's wallet-derived key, which is the balance `buyAndActivate` filled. The receipt can then say whose money paid for what.
+**Two keys.** The brief runs on the product's own key and is free to the founder; the round page says "on us". Sessions and reports run on the round's wallet-derived key, which is the balance `buyAndActivate` filled. The receipt can then say whose money paid for what. On the live demo this is collapsed to one key by `TEST_ON_PREP_KEY=1`, so sessions spend the Build Week allowance alongside the brief; unset it and the split above is what runs.
 
-**Spend is metered per session.** Every gateway response carries `X-Orbio-Balance`, and a session's cost is the change in the key's lifetime `used` between its first and last call. Measured on real rounds: 1 to 11 cents per session, most of them 3 to 7.
+**Spend is metered per session.** During a chat each call is estimated from token counts at list prices; when the session ends the cost is corrected against the gateway's own number, the change in the key's lifetime `used` between the session's first and last call. That counter belongs to the key, so two sessions running at the same time on one key charge each other. Measured on real rounds: 1 to 11 cents per session, most of them 3 to 7.
 
 The Orbio-facing code is small and sits in two files: `src/money.ts` (fund, balance, charge, payout) and `src/chain.ts` (viem, contracts, key derivation). ABIs in `abi/` are Orbio's published integration subsets.
 
@@ -49,7 +49,7 @@ Contracts: CREDIT `0xe333…004c`, Exchange `0x6951…ebc0`, USDG `0x5fc5…d168
 
 ## What runs on what, this week
 
-The live demo runs on the $50 Orbio allowance from Build Week. `FUND_TESTING=1` is set there, which means funding a round costs $0 and the sessions draw on that allowance instead of buying more CREDIT. The chain path above is the same code with the flag unset, and it is what produced the transaction linked above.
+The live demo runs on the $50 Orbio allowance from Build Week. Two flags are set there: `FUND_TESTING=1`, so funding a round costs $0 and buys no CREDIT, and `TEST_ON_PREP_KEY=1`, so sessions spend that same allowance instead of the round's wallet-derived key. The chain path above is the same code with both flags unset, and it is what produced the transaction linked above.
 
 Two other things the UI states but worth repeating here:
 

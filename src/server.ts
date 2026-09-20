@@ -46,11 +46,28 @@ app.get('/r/:id', async c => {
   return c.redirect('/s/' + token);
 });
 
+const PASTE_MAX = 8000;
+const BRIEFS_PER_IP_HOUR = 10, BRIEFS_PER_DAY = 50, MAX_INTERVIEWS = 20;
+const briefHits: { ip: string; at: number }[] = [];
+function briefAllowed(ip: string) {
+  const now = Date.now();
+  while (briefHits.length && now - briefHits[0].at > 864e5) briefHits.shift();
+  if (briefHits.length >= BRIEFS_PER_DAY) return 'The app has hit its brief limit for today. Try again tomorrow.';
+  if (briefHits.filter(h => h.ip === ip && now - h.at < 36e5).length >= BRIEFS_PER_IP_HOUR)
+    return 'Too many briefs from here in the last hour. Try again later.';
+  briefHits.push({ ip, at: now });
+  return null;
+}
+const clientIp = (c: any) => c.req.header('fly-client-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+
 // Brief: paste in, five unknowns out
 app.post('/api/brief', async c => {
   let paste = '';
   try { ({ paste } = await c.req.json()); } catch { return c.json({ error: 'Bad request.' }, 400); }
   if (!paste?.trim()) return c.json({ error: 'Paste your project context first.' }, 400);
+  if (paste.length > PASTE_MAX) return c.json({ error: `That paste is ${Math.round(paste.length / 1000)}k characters. Keep it under ${PASTE_MAX / 1000}k, the useful parts only.` }, 400);
+  const limited = briefAllowed(clientIp(c));
+  if (limited) return c.json({ error: limited }, 429);
   if (/^I'm about to run short interviews|Return only the paste, plain text/i.test(paste.trim()))
     return c.json({ error: 'That\'s the prompt itself. Paste it into the AI that knows your project, then paste back what it gives you.' }, 400);
   try {
@@ -67,7 +84,10 @@ app.post('/api/brief', async c => {
 
 // Round: create, price, fund
 app.post('/api/rounds', async c => {
-  const { brief, interviews, bounty_cents, paste, prep_cents } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string; prep_cents?: number };
+  const body = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string; prep_cents?: number };
+  const { brief, bounty_cents, paste, prep_cents } = body;
+  const interviews = Math.min(Math.max(Math.round(Number(body.interviews) || 1), 1), MAX_INTERVIEWS);
+  if (!brief?.project || !Array.isArray(brief?.unknowns)) return c.json({ error: 'Bad request.' }, 400);
   const rid = id(), key = secret();
   db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste, prep_cents, secret) values (?,?,?,?,?,?,0,?,?,?)')
     .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null, prep_cents ?? 0, key);

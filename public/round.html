@@ -55,7 +55,7 @@ function fundcard(){
   $('#fund').innerHTML=`<h2>Fund the round</h2><div class="card">
 <div class="small muted" style="margin:0 0 12px">${n} short chats · about 5 min each</div>
 <table class="rate">
-<tr><td>AI for this round ${tip('Runs on <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank">Orbio</a>. Chats, each session writeup, and the round synthesis (Claude Sonnet). Brief is on us. People you invite just open a link, no account needed.')}</td><td class="r">${$c(p.inference_cents)}</td></tr>
+<tr><td>AI for this round ${tip('Runs on <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank">Orbio</a>. Chats, each session writeup, and the round synthesis (Claude Sonnet 5, or 4.5 when no provider is serving). Brief is on us. People you invite just open a link, no account needed.')}</td><td class="r">${$c(p.inference_cents)}</td></tr>
 <tr><td>Suggested bounties ${tip('What you pay each person for their time. Paid interviews get better answers and more trust. Not on-chain yet, pay them yourself for now. Coming soon.')}</td><td class="r">${$c(b)} × ${n} = ${$c(p.bounties_cents)} · by hand</td></tr>
 <tr><td>Platform fee</td><td class="r">0% · Build Week</td></tr>
 <tr class="pay-now"><td>Pay now</td><td class="r">${payLabel}</td></tr>
@@ -87,6 +87,10 @@ function ledger(){
   </div>
 </div>
 <p class="small muted" style="margin:10px 0 0">Send it to anyone. They only need the link.</p>
+<div class="row small" style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+  <div class="muted">Spent on Orbio so far</div>
+  <div class="right mono">${$c(R.spent_cents||0)}</div>
+</div>
 </div>
 <div class="card" style="margin-top:10px">
   <div class="row" style="align-items:flex-start">
@@ -121,7 +125,7 @@ function ledger(){
     }else if(s.abandoned){
       d.innerHTML=`<div class="row" style="align-items:baseline"><div><div class="sess-title">${label} · ${esc(r.handle||s.handle||'')}</div><div class="small muted">${r.minutes||'-'} min · abandoned</div></div><span class="status thin right">abandoned</span></div>`;
     }else{
-      d.innerHTML=`<div class="row" style="align-items:flex-start"><div style="flex:1;min-width:0"><div class="sess-title">${label} · ${esc(r.handle||s.handle||'')}</div><div class="small muted">${r.minutes||'-'} min${r.who?' · '+esc(r.who):''}</div></div><a class="small sess-open" href="/round/${rid}/s/${s.id}?key=${KEY}">Open</a></div>`;
+      d.innerHTML=`<div class="row" style="align-items:flex-start"><div style="flex:1;min-width:0"><div class="sess-title">${label} · ${esc(r.handle||s.handle||'')}</div><div class="small muted">${r.minutes||'-'} min${s.cost_cents?' · '+$c(s.cost_cents)+' on Orbio':''}${r.who?' · '+esc(r.who):''}</div></div><a class="small sess-open" href="/round/${rid}/s/${s.id}?key=${KEY}">Open</a></div>`;
     }
     S.appendChild(d);
   });
