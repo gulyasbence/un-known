@@ -288,3 +288,11 @@ button.text-btn, .text-btn{
   cursor:pointer;letter-spacing:0;text-transform:none;
 }
 button.text-btn:hover, .text-btn:hover{color:var(--text);opacity:1}
+
+/* Loading placeholders: the page chrome renders at once, values pulse until they land. */
+@keyframes skelPulse{0%,100%{opacity:.5}50%{opacity:.22}}
+.skel{display:inline-block;height:1em;min-width:120px;border-radius:4px;background:var(--line);animation:skelPulse 1.3s ease-in-out infinite;vertical-align:middle}
+.skel.sm{min-width:70px}
+.skel.lg{min-width:min(280px,60vw)}
+.skel-card{height:74px;margin-top:10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--line);animation:skelPulse 1.3s ease-in-out infinite}
+.skel-card.tall{height:150px}
