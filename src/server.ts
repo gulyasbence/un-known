@@ -72,6 +72,11 @@ app.post('/api/brief', async c => {
     return c.json({ error: 'That\'s the prompt itself. Paste it into the AI that knows your project, then paste back what it gives you.' }, 400);
   try {
     const r = await makeBrief(paste);
+    const b = r.data as any;
+    // The brief-maker answers {"reject": "..."} when the paste isn't enough to build a brief from.
+    if (b?.reject) return c.json({ error: String(b.reject) }, 422);
+    if (!Array.isArray(b?.unknowns) || !b.unknowns.length || !Array.isArray(b?.screener))
+      return c.json({ error: 'The brief came back incomplete. Try again, or add a bit more about your project.' }, 502);
     return c.json({ brief: r.data, cost_cents: r.cost_cents, balance: r.balance, model: r.model });
   } catch (e) {
     console.error('[brief]', e);

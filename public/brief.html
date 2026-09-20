@@ -44,6 +44,10 @@ function reasonText(x){
 }
 
 function render(){
+  if(!brief||!Array.isArray(brief.unknowns)||!brief.unknowns.length){
+    document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">That brief didn\'t come through. Paste your project context again.</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';
+    return false;
+  }
   $('#pname').textContent=brief.project;$('#pline').textContent=brief.one_line;
   const sc=$('#screener');sc.innerHTML='';(brief.screener||[]).forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><input class="sq" aria-label="Screener question"><div class="small muted" style="margin-top:4px">options, comma separated: <input class="so" style="font-size:12.5px;padding:4px 6px" aria-label="Screener options"></div></div>`;d.querySelector('.sq').value=x.q;d.querySelector('.so').value=x.options.join(', ');d.querySelector('.sq').oninput=e=>x.q=e.target.value;d.querySelector('.so').oninput=e=>x.options=e.target.value.split(',').map(v=>v.trim()).filter(Boolean);sc.appendChild(d)});
   $('#opener').value=brief.opener||'';$('#opener').oninput=e=>brief.opener=e.target.value;
@@ -85,10 +89,12 @@ function render(){
     });
     u.appendChild(d);
   });
-  const dl=$('#dont');dl.innerHTML='';brief.dont_ask.forEach(x=>{const li=document.createElement('li');li.textContent=x;dl.appendChild(li)});
+  const dl=$('#dont');dl.innerHTML='';(brief.dont_ask||[]).forEach(x=>{const li=document.createElement('li');li.textContent=x;dl.appendChild(li)});
+  return true;
 }
-render();
+if(render()){
 $('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());location.href='/round/'+r.id+'?key='+r.key};
+}
 </script>
 <p class="small muted" style="margin-top:28px">Powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank">Orbio</a>.</p>
 </main></body></html>

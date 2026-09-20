@@ -65,7 +65,7 @@ function startWait(){
   $('#read').hidden=true;
   const w=$('#wait');w.hidden=false;
   let i=0;$('#wait-text').textContent=WAIT[0];
-  return setInterval(()=>{i=Math.min(i+1,WAIT.length-1);$('#wait-text').textContent=WAIT[i]},2600);
+  return setInterval(()=>{i=i+1<WAIT.length?i+1:1;$('#wait-text').textContent=WAIT[i]},2600);
 }
 function stopWait(t){
   if(t)clearInterval(t);
