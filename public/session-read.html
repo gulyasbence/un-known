@@ -1,0 +1,76 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session · (un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="%23111" stroke="%23111" stroke-width="2"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="%23ecece6" stroke="%23ecece6" stroke-width="2"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
+<body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
+<div class="page-nav">
+  <a class="small" id="back" href="#">← report</a>
+  <a class="brand" href="/">(un)known</a>
+</div>
+
+<h1 id="pname"></h1>
+<p class="sub" id="meta"></p>
+
+<div id="out"></div>
+<script>
+const $=s=>document.querySelector(s);
+const parts=location.pathname.split('/');
+const rid=parts[2], sid=parts[4];
+const KEY=new URLSearchParams(location.search).get('key')||'';
+const api=p=>p+(p.includes('?')?'&':'?')+'key='+KEY;
+$('#back').href='/round/'+rid+'/report?key='+KEY;
+const LAB={answered:'answered',opened:'opened',thin:'thin',not_asked:'not asked'};
+const esc=t=>String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function load(){
+  const R=await fetch(api('/api/rounds/'+rid)).then(r=>r.json());
+  if(R.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">'+(R.error==='unauthorized'?'This link needs a key.':'Round not found.')+'</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}
+  const full=await fetch(api('/api/sessions/'+sid)).then(r=>r.json());
+  if(full.error|| (full.round_id&&full.round_id!==rid)){ $('#out').innerHTML='<div class="card muted small">Session not found.</div>'; return }
+  const done=R.sessions.filter(s=>s.done_at);
+  const idx=done.findIndex(s=>s.id===sid);
+  const s=R.sessions.find(x=>x.id===sid)||{};
+  const r=s.receipt||full.receipt||{};
+  const rep=full.report;
+  $('#pname').textContent=R.project;
+  const bits=[];
+  if(idx>=0) bits.push('Session '+(idx+1));
+  bits.push(r.handle||s.handle||'someone');
+  if(r.minutes!=null) bits.push(r.minutes+' min');
+  if(r.who) bits.push(r.who);
+  $('#meta').textContent=bits.join(' · ');
+
+  let html='';
+  if(!rep){
+    html=`<div class="card muted small">Writing the report… <a href="#" onclick="load();return false">refresh</a></div>`;
+    $('#out').innerHTML=html;return;
+  }
+  if(rep.takeaways&&rep.takeaways.length){
+    html+=`<h2>Takeaways</h2><div class="card takeaways"><ol>${rep.takeaways.map(t=>`<li>${esc(t)}</li>`).join('')}</ol></div>`;
+  }
+  if(rep.surprising){
+    html+=`<h2>Surprising</h2><div class="card">${esc(rep.surprising)}</div>`;
+  }
+  if(rep.change_if_true){
+    html+=`<h2>If this is true, change</h2><div class="change">${esc(rep.change_if_true)}</div>`;
+  }
+  const items=(rep.items||[]).filter(it=>full.brief.unknowns[it.i]);
+  if(items.length){
+    html+=`<h2>By question</h2><div class="card report-byq">`;
+    html+=items.map(it=>{
+      const u=full.brief.unknowns[it.i];
+      const st=LAB[it.status]||it.status;
+      return `<div class="byq">
+  <div class="byq-q"><span class="n">${it.i+1}</span><span>${esc(u.q)}</span></div>
+  <div class="byq-a"><span class="byq-st">${esc(st)}</span>${esc(it.claim)}</div>
+</div>`;
+    }).join('');
+    html+=`</div>`;
+  }
+  if(rep.still_open&&rep.still_open.length) html+=`<p class="small muted" style="margin:0 0 12px">Still open: ${rep.still_open.map(n=>'#'+n).join(', ')}</p>`;
+  else if(rep.still_open&&Array.isArray(rep.still_open)&&!rep.still_open.length) html+=`<p class="small muted" style="margin:0 0 12px">Still open: none</p>`;
+
+  const tr=full.transcript||[];
+  html+=`<details class="fold" id="tape"><summary>Session tape · ${tr.length} turns</summary><div class="chat" style="margin-top:10px">${tr.map((t,i)=>`<div class="msg ${t.role}" id="t-${i}">${esc(t.text)}</div>`).join('')}</div></details>`;
+  html+=`<p class="small muted" style="margin-top:24px"><a href="/round/${rid}/report?key=${KEY}">&#8592; all sessions</a></p>`;
+  $('#out').innerHTML=html;
+}
+load();
+</script>
+</main></body></html>

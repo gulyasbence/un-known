@@ -1,59 +1,93 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Five Unknowns</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main>
-<h1>Five Unknowns</h1>
-<p class="sub">Paste what you have. Get the five things you don't know about your users, ranked. Fund a round, real people answer in a few minutes, you get a report that answers the five.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>(un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23111" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23111" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23ecece6" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
+<body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
+<h1>(un)known</h1>
+<p class="sub">Turn "I don't know" into a few usable insights.</p>
 
-<div id="step1">
-  <h2>1 · Get your project into one paste</h2>
-  <div class="card">
-    <p class="small muted" style="margin:0 0 8px">Copy this prompt into the AI that already knows your project (Claude, ChatGPT, Grok). Paste back what it gives you. No form, no account.</p>
-    <div class="row"><button id="copy">Copy the prompt for your AI</button><button class="ghost" id="show">View prompt</button><button class="ghost" id="example">Try an example</button></div>
-    <pre id="prompt" class="mono small" style="display:none;white-space:pre-wrap;margin-top:10px"></pre>
-  </div>
-  <div class="card">
-    <textarea id="paste" placeholder="Paste what it gave you here"></textarea>
-    <div class="row" style="margin-top:8px"><span class="small muted" id="meta"></span><button class="right" id="read">Read it</button></div>
+<details class="fold rule-after" style="margin:0 0 22px">
+  <summary>How it works</summary>
+  <ol class="small" style="margin:0;padding-left:1.2rem;line-height:1.6">
+    <li>Paste project context from the AI that already knows it</li>
+    <li>Edit what you still don't know about users</li>
+    <li>Fund a round, send one link</li>
+    <li>Read the report: what showed up, what you'd change if true</li>
+  </ol>
+</details>
+
+<h2>1 · Paste your project</h2>
+<div class="paste-stack">
+<div class="card prompt-card">
+  <p class="small muted" style="margin:0">Copy this prompt into the AI that already knows your project. Paste back what it gives you.</p>
+  <div class="row"><button id="copy">Copy the prompt for your AI</button></div>
+  <details class="fold quiet">
+    <summary>View prompt</summary>
+    <pre id="prompt" class="mono small" style="white-space:pre-wrap;margin-top:10px"></pre>
+  </details>
+  <details class="fold quiet">
+    <summary>No AI conversation yet?</summary>
+    <div class="small muted" style="margin-top:10px;line-height:1.6">
+      Write a few paragraphs covering:
+      <ul style="margin:6px 0 0;padding-left:1.2rem">
+        <li>What your product is and who it's for</li>
+        <li>What's live and what's not yet</li>
+        <li>Who has actually used it and what they do with it</li>
+        <li>What you believe about your users but haven't verified</li>
+        <li>What you've actually seen (quotes, drop-offs, support messages)</li>
+        <li>One product decision you're trying to make right now</li>
+      </ul>
+    </div>
+  </details>
+</div>
+<div class="card">
+  <textarea id="paste" placeholder="Paste what it gave you here" aria-label="Project context"></textarea>
+  <div class="row create-row" style="margin-top:8px">
+    <button class="right" id="read" title="Paste your project context first">Create brief</button>
+    <div id="wait" class="wait" hidden aria-live="polite">
+      <span id="wait-text">Reading your paste…</span>
+      <span class="wait-dots" aria-hidden="true"></span>
+    </div>
   </div>
 </div>
-
-<div id="step2" style="display:none">
-  <h2>2 · What you don't know yet</h2>
-  <p class="small muted">Five, ranked by how much rides on it and how little evidence you gave, ordered so the chat zooms in. Each has the question you want answered and the words the interviewer will use. Reorder, rewrite, kill, add. The list is the brief.</p>
-  <div class="card"><div class="row"><b id="pname"></b><span class="muted small" id="pline"></span></div></div>
-  <h2>Who we'll ask about first</h2>
-  <p class="small muted">Two taps before the chat, then one open question. Life first, not the product. This is where the person comes from in the report.</p>
-  <div class="card" id="screener"></div>
-  <div class="card"><div class="small muted" style="margin-bottom:4px">the chat opens with</div><textarea id="opener" rows="2" style="min-height:0"></textarea></div>
-  <h2>The five</h2>
-  <div class="card" id="unknowns"></div>
-  <div class="row"><button class="ghost sm" id="add">+ add one</button></div>
-  <h2>Don't ask</h2>
-  <div class="card"><ul class="dont small" id="dont"></ul><p class="small muted" style="margin:6px 0 0">The interviewer never asks these. They're built from your paste.</p></div>
-  <div class="row" style="margin-top:16px"><button id="golive">Go live →</button><span class="small muted">Free until here. Next: price the round.</span></div>
 </div>
 
 <script>
-let brief=null;
 const $=s=>document.querySelector(s);
-fetch('/api/meta').then(r=>r.json()).then(m=>{$('#prompt').textContent=m.copy_prompt;$('#meta').textContent=m.live?('model: '+m.model):'running on a mock model, set ORBIO_API_KEY for the real one';window.PROMPT=m.copy_prompt});
+const WAIT=[
+  'Reading your paste…',
+  'Finding the unknowns…',
+  'Drafting the asks…',
+  'Almost there…'
+];
+fetch('/api/meta').then(r=>r.json()).then(m=>{$('#prompt').textContent=m.copy_prompt;window.PROMPT=m.copy_prompt});
 $('#copy').onclick=async()=>{await navigator.clipboard.writeText(window.PROMPT);$('#copy').textContent='Copied';setTimeout(()=>$('#copy').textContent='Copy the prompt for your AI',1500)};
-$('#show').onclick=()=>{const p=$('#prompt');p.style.display=p.style.display==='none'?'block':'none'};
-$('#example').onclick=()=>{$('#paste').value=EXAMPLE};
-$('#read').onclick=async()=>{$('#read').disabled=true;$('#read').textContent='Reading…';const r=await fetch('/api/brief',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paste:$('#paste').value})}).then(r=>r.json());brief=r.brief;window.PREP=r.cost_cents||0;render();$('#step1').style.display='none';$('#step2').style.display='block'};
-function render(){$('#pname').textContent=brief.project;$('#pline').textContent=brief.one_line;
- const sc=$('#screener');sc.innerHTML='';(brief.screener||[]).forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><input class="sq"><div class="small muted" style="margin-top:4px">options, comma separated: <input class="so" style="font-size:12.5px;padding:4px 6px"></div></div>`;d.querySelector('.sq').value=x.q;d.querySelector('.so').value=x.options.join(', ');d.querySelector('.sq').oninput=e=>x.q=e.target.value;d.querySelector('.so').oninput=e=>x.options=e.target.value.split(',').map(v=>v.trim()).filter(Boolean);sc.appendChild(d)});
- $('#opener').value=brief.opener||'';$('#opener').oninput=e=>brief.opener=e.target.value;
- const u=$('#unknowns');u.innerHTML='';brief.unknowns.forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><textarea rows="2" style="min-height:0"></textarea><div class="because">because: <span></span></div><div class="small muted" style="margin-top:4px">the interviewer opens with: <input class="ask" style="font-size:12.5px;padding:4px 6px"></div></div><div class="ctl"><button data-a="up">▲</button><button data-a="down">▼</button><button data-a="kill">×</button></div>`;d.querySelector('textarea').value=x.q;d.querySelector('.ask').value=x.ask||'';d.querySelector('.ask').oninput=e=>x.ask=e.target.value;d.querySelector('.because span').textContent=x.because;d.querySelector('textarea').oninput=e=>x.q=e.target.value;d.querySelectorAll('button').forEach(b=>b.onclick=()=>{const a=b.dataset.a;if(a==='kill')brief.unknowns.splice(i,1);if(a==='up'&&i>0)[brief.unknowns[i-1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i-1]];if(a==='down'&&i<brief.unknowns.length-1)[brief.unknowns[i+1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i+1]];render()});u.appendChild(d)});
- const dl=$('#dont');dl.innerHTML='';brief.dont_ask.forEach(x=>{const li=document.createElement('li');li.textContent=x;dl.appendChild(li)})}
-$('#add').onclick=()=>{brief.unknowns.push({q:'',ask:'',because:'yours, no gap named'});render()};
-$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim());sessionStorage.setItem('brief',JSON.stringify(brief));const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste:$('#paste').value,prep_cents:window.PREP||0})}).then(r=>r.json());location.href='/round/'+r.id};
-const EXAMPLE=`PROJECT: Streamswap, a Solana DEX where you sell a big bag over time instead of in one swap, for traders holding more than the pool can absorb at once
-STAGE: live on mainnet since July, one pair with real volume, duration control and receipt shipped, limit orders not yet
-WHO USES IT: about 40 wallets have swapped, 6 came back more than once, known from the indexer
-WHAT THEY DO: connect, enter a size, pick a duration, watch it run, read the receipt
-WHAT I BELIEVE: traders understand that time is the lever; the 2% on the receipt reads as the cost of selling slowly; people find us from KOL posts; a first-timer tries small before real size; the receipt is enough to bring them back
-WHAT I'VE SEEN: 34 of 40 wallets did one swap and never returned (indexer); three support DMs asked "why did I get less than the quote" (TG); one KOL post brought 11 wallets in a day (indexer); no one has used a duration over 1 hour (indexer)
-WHAT I WANT TO DECIDE NEXT: whether to put the fee explanation before the ticket or keep it on the receipt
-DON'T KNOW: who the returning 6 are, what the 34 did next`;
+$('#read').disabled=true;
+$('#paste').oninput=()=>{$('#read').disabled=!$('#paste').value.trim()};
+function startWait(){
+  $('#read').hidden=true;
+  const w=$('#wait');w.hidden=false;
+  let i=0;$('#wait-text').textContent=WAIT[0];
+  return setInterval(()=>{i=Math.min(i+1,WAIT.length-1);$('#wait-text').textContent=WAIT[i]},2600);
+}
+function stopWait(t){
+  if(t)clearInterval(t);
+  $('#wait').hidden=true;
+  $('#read').hidden=false;
+  $('#read').textContent='Create brief';
+  $('#read').disabled=false;
+  $('#paste').disabled=false;
+}
+$('#read').onclick=async()=>{
+  if(!$('#paste').value.trim())return;
+  $('#paste').disabled=true;
+  const tick=startWait();
+  try{
+    const res=await fetch('/api/brief',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paste:$('#paste').value})});
+    const r=await res.json().catch(()=>({error:'Brief failed.'}));
+    if(!res.ok||r.error){stopWait(tick);alert(r.error||'Brief failed.');return}
+    $('#wait-text').textContent='Brief ready — opening…';
+    sessionStorage.setItem('_brief',JSON.stringify({brief:r.brief,paste:$('#paste').value,prep:r.cost_cents||0}));
+    location.href='/brief';
+  }catch(e){stopWait(tick);alert('Brief failed.');}
+};
 </script>
+<p class="small muted" style="margin-top:28px">Inference on <a href="https://www.orbio.so/" target="_blank">Orbio</a>.</p>
 </main></body></html>

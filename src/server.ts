@@ -3,11 +3,10 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
-import { db, id, now, getRound, getSession, saveSession, type Brief } from './db.js';
-import { fund, priceRound, charge, payout, releaseBounty } from './money.js';
-import { COPY_PROMPT, makeBrief, mainQuestion, openerQuestion, decideFollowup, makeReport, makeWho, type Turn, type State } from './prompts.js';
+import { db, id, secret, now, getRound, getSession, saveSession, type Brief } from './db.js';
+import { fund, priceRound, charge, payout, releaseBounty, fundTesting, live as moneyLive, gatewayBalance } from './money.js';
+import { COPY_PROMPT, makeBrief, mainQuestion, openerQuestion, decideFollowup, makeReport, makeRoundReport, makeWho, type Turn, type State } from './prompts.js';
 import { live, MODEL, init } from './llm.js';
-import { live as moneyLive, gatewayBalance } from './money.js';
 import { balances } from './chain.js';
 await init();
 
@@ -15,13 +14,25 @@ const app = new Hono();
 const page = (f: string) => (c: any) => c.html(readFileSync(`public/${f}`, 'utf8'));
 
 app.get('/', page('index.html'));
+app.get('/brief', page('brief.html'));
 app.get('/round/:id', page('round.html'));
 app.get('/round/:id/report', page('report.html'));
+app.get('/round/:id/s/:sid', page('session-read.html'));
 app.get('/s/:token', page('session.html'));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
+function checkKey(c: any, r: any) {
+  if (!r.secret) return true; // legacy rounds without a secret
+  const k = new URL(c.req.url, 'http://x').searchParams.get('key');
+  return k === r.secret;
+}
+
 app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT }));
-app.get('/api/health', async c => c.json({ model: live ? MODEL : 'mock', wallet: await balances().catch(e => ({ error: String(e) })), round_key: await gatewayBalance('round').catch(() => null), prep_key: await gatewayBalance('prep').catch(() => null) }));
+app.get('/api/health', async c => {
+  const auth = c.req.header('authorization');
+  if (auth !== `Bearer ${process.env.HEALTH_TOKEN || 'local'}`) return c.json({ error: 'unauthorized' }, 403);
+  return c.json({ model: live ? MODEL : 'mock', wallet: await balances().catch(e => ({ error: String(e) })), round_key: await gatewayBalance('round').catch(() => null), prep_key: await gatewayBalance('prep').catch(() => null) });
+});
 // One invite link per round. Opening it spawns a session.
 app.get('/r/:id', async c => {
   const r = getRound(c.req.param('id'));
@@ -37,26 +48,35 @@ app.get('/r/:id', async c => {
 
 // Column 3
 app.post('/api/brief', async c => {
-  const { paste } = await c.req.json();
-  const r = await makeBrief(paste || '');
-  return c.json({ brief: r.data, cost_cents: r.cost_cents, balance: r.balance });
+  let paste = '';
+  try { ({ paste } = await c.req.json()); } catch { return c.json({ error: 'Bad request.' }, 400); }
+  if (!paste?.trim()) return c.json({ error: 'Paste your project context first.' }, 400);
+  if (/^I'm about to run short interviews|Return only the paste, plain text/i.test(paste.trim()))
+    return c.json({ error: 'That\'s the prompt itself. Paste it into the AI that knows your project, then paste back what it gives you.' }, 400);
+  try {
+    const r = await makeBrief(paste);
+    return c.json({ brief: r.data, cost_cents: r.cost_cents, balance: r.balance, model: r.model });
+  } catch (e) {
+    console.error('[brief]', e);
+    const msg = (e as Error)?.message || String(e);
+    if (/model_not_available|No provider/i.test(msg))
+      return c.json({ error: 'Model unavailable on Orbio right now. Try again in a minute.' }, 502);
+    return c.json({ error: msg || 'Brief failed. Try again.' }, 400);
+  }
 });
 
 // Column 4
 app.post('/api/rounds', async c => {
   const { brief, interviews, bounty_cents, paste, prep_cents } = await c.req.json() as { brief: Brief; interviews: number; bounty_cents: number; paste?: string; prep_cents?: number };
-  const rid = id();
-  // prep (the brief call) runs on the product's key, not the founder's round; the round page shows it as "on us"
-  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste, prep_cents) values (?,?,?,?,?,?,0,?,?)')
-    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null, prep_cents ?? 0);
-  return c.json({ id: rid, price: priceRound(interviews, bounty_cents) });
+  const rid = id(), key = secret();
+  db.prepare('insert into rounds (id, created_at, project, brief, interviews, bounty_cents, balance_cents, paste, prep_cents, secret) values (?,?,?,?,?,?,0,?,?,?)')
+    .run(rid, now(), brief.project, JSON.stringify(brief), interviews, bounty_cents, paste ?? null, prep_cents ?? 0, key);
+  return c.json({ id: rid, key, price: priceRound(interviews, bounty_cents) });
 });
 const ABANDON_MS = 30 * 60000;
-function sweep(roundId: string) {
+function sweepRound(roundId: string) {
   const cutoff = new Date(Date.now() - ABANDON_MS).toISOString();
-  // opened the link, never answered, 30 min old: drop it, nothing was charged
   db.prepare(`delete from sessions where round_id=? and done_at is null and created_at < ? and transcript not like '%"role":"user"%'`).run(roundId, cutoff);
-  // answered something, then left: close it as abandoned with a receipt for what was charged, no bounty
   const stale = db.prepare(`select id from sessions where round_id=? and done_at is null and created_at < ?`).all(roundId, cutoff) as any[];
   for (const { id: sid } of stale) {
     const s = getSession('id', sid)!; const r = getRound(roundId)!;
@@ -65,20 +85,26 @@ function sweep(roundId: string) {
     saveSession(s);
   }
 }
+function sweepAll() {
+  const rounds = db.prepare('select id from rounds where funded_at is not null').all() as any[];
+  for (const r of rounds) sweepRound(r.id);
+}
+setInterval(sweepAll, 5 * 60000);
 app.get('/api/rounds/:id', async c => {
   const r0 = getRound(c.req.param('id'));
-  if (!r0) return c.json({ error: 'no round' }, 404);
-  sweep(r0.id);
-  const r = getRound(r0.id)!;
+  if (!r0) return c.json({ error: 'not found' }, 404);
+  if (!checkKey(c, r0)) return c.json({ error: 'unauthorized' }, 403);
+  const r = r0;
   const sessions = (db.prepare('select * from sessions where round_id=? order by created_at').all(r.id) as any[])
     .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report, abandoned: !!JSON.parse(s.state).abandoned }));
   const spent_cents = sessions.reduce((a, s) => a + (s.cost_cents || 0), 0);
   const key = r.funded_at ? await gatewayBalance('round').catch(() => null) : null;
-  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null });
+  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null, fund_testing: fundTesting || !moneyLive, model: MODEL, synthesis_stale: synthesisStale(r, sessions.filter(x => x.done_at).map(x => x.id)) });
 });
 app.post('/api/rounds/:id/fund', async c => {
   const r = getRound(c.req.param('id'));
-  if (!r) return c.json({ error: 'no round' }, 404);
+  if (!r) return c.json({ error: 'not found' }, 404);
+  if (!checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
   const f = await fund(r.id, r.interviews, r.bounty_cents);
   // one open invite link per round; each opener gets their own session
   return c.json(f);
@@ -118,7 +144,7 @@ app.post('/api/s/:token/answer', async c => {
     st.item++; st.asked_followup = false;
     if (st.item >= r.brief.unknowns.length) {
       st.done = true; s.done_at = now();
-      tr.push({ role: 'agent', text: `That's all five. Thank you. $${(r.bounty_cents / 100).toFixed(2)} is on its way.`, kind: 'close' });
+      tr.push({ role: 'agent', text: `That's all. Thank you for your time.`, kind: 'close' });
       s.receipt = receipt(s, r, tr, st);
       await payout(s.id, r.bounty_cents); s.paid_at = now();
       releaseBounty(r.id, r.bounty_cents);
@@ -135,7 +161,7 @@ app.post('/api/s/:token/stop', async c => {
   if (!s || s.state.done) return c.json({ ok: false });
   const r = getRound(s.round_id)!;
   s.state.done = true; s.done_at = now();
-  s.transcript.push({ role: 'agent', text: `Thanks for the time. $${(r.bounty_cents / 100).toFixed(2)} is on its way.`, kind: 'close' });
+  s.transcript.push({ role: 'agent', text: `Thanks for your time.`, kind: 'close' });
   s.receipt = receipt(s, r, s.transcript, s.state);
   await payout(s.id, r.bounty_cents); s.paid_at = now(); releaseBounty(r.id, r.bounty_cents);
   saveSession(s); writeReport(s.id).catch(e => console.error('[report]', e));
@@ -160,7 +186,7 @@ async function writeReport(sid: string) {
   const s = getSession('id', sid)!; const r = getRound(s.round_id)!;
   const rep = await makeReport(r.brief, s.transcript, s.state.who ?? '');
   s.cost_cents += rep.cost_cents; charge(r.id, rep.cost_cents);
-  s.report = { ...rep.data, generated_at: now(), cost_cents: rep.cost_cents };
+  s.report = { ...rep.data, generated_at: now(), cost_cents: rep.cost_cents, model: rep.model };
   // true up from the gateway: what this session actually cost, brief to report
   const gb = await gatewayBalance('round').catch(() => null);
   if (gb && s.state.used_at_start != null) {
@@ -168,13 +194,77 @@ async function writeReport(sid: string) {
     charge(r.id, real - s.cost_cents); s.cost_cents = real;
   }
   if (s.receipt) s.receipt.inference_cents = s.cost_cents;
-  saveSession(s); return s.report;
+  saveSession(s);
+  writeSynthesis(r.id).catch(e => console.error('[synthesis]', e));
+  return s.report;
 }
-app.post('/api/sessions/:id/report', async c => c.json(await writeReport(c.req.param('id'))));
+
+const _synLock = new Map<string, Promise<any>>();
+async function writeSynthesis(roundId: string) {
+  const running = _synLock.get(roundId);
+  if (running) return running;
+  const p = _writeSynthesisInner(roundId).finally(() => _synLock.delete(roundId));
+  _synLock.set(roundId, p);
+  return p;
+}
+async function _writeSynthesisInner(roundId: string) {
+  const r = getRound(roundId)!;
+  const rows = db.prepare('select * from sessions where round_id=? and done_at is not null order by created_at').all(roundId) as any[];
+  const packs = rows.map(row => {
+    const s = getSession('id', row.id)!;
+    if (!s.report) return null;
+    const rep = s.report;
+    return {
+      handle: s.handle || s.receipt?.handle || 'someone',
+      who: rep.who || s.receipt?.who || s.state?.who || '',
+      takeaways: rep.takeaways || [],
+      surprising: rep.surprising || '',
+      change_if_true: rep.change_if_true || '',
+      items: (rep.items || []).map((it: any) => ({ i: it.i, status: it.status, claim: it.claim })),
+    };
+  }).filter(Boolean) as any[];
+  if (!packs.length) return null;
+  const syn = await makeRoundReport(r.brief, packs);
+  charge(r.id, syn.cost_cents);
+  const ids = rows.map(x => x.id);
+  const payload = { ...syn.data, generated_at: now(), cost_cents: syn.cost_cents, session_count: packs.length };
+  db.prepare('update rounds set synthesis=?, synthesis_at=?, synthesis_session_ids=? where id=?')
+    .run(JSON.stringify(payload), now(), JSON.stringify(ids), roundId);
+  return payload;
+}
+
+function synthesisStale(r: any, doneIds: string[]) {
+  if (!r.synthesis) return doneIds.length > 0;
+  const had: string[] = r.synthesis_session_ids || [];
+  if (had.length !== doneIds.length) return true;
+  return doneIds.some(id => !had.includes(id));
+}
+
+app.post('/api/sessions/:id/report', async c => {
+  const s = getSession('id', c.req.param('id'));
+  if (!s) return c.json({ error: 'not found' }, 404);
+  const r = getRound(s.round_id);
+  if (!r || !checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
+  return c.json(await writeReport(c.req.param('id')));
+});
+app.post('/api/rounds/:id/synthesis', async c => {
+  const r = getRound(c.req.param('id'));
+  if (!r) return c.json({ error: 'not found' }, 404);
+  if (!checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
+  try {
+    const syn = await writeSynthesis(c.req.param('id'));
+    if (!syn) return c.json({ error: 'No finished sessions yet.' }, 400);
+    return c.json(syn);
+  } catch (e) {
+    console.error('[synthesis]', e);
+    return c.json({ error: 'Synthesis failed. Try again.' }, 502);
+  }
+});
 app.get('/api/sessions/:id', c => {
   const s = getSession('id', c.req.param('id'));
-  if (!s) return c.json({ error: 'no session' }, 404);
+  if (!s) return c.json({ error: 'not found' }, 404);
   const r = getRound(s.round_id)!;
+  if (!checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
   return c.json({ ...s, brief: r.brief, round_id: r.id });
 });
 

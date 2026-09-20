@@ -1,32 +1,133 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Round · Five Unknowns</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main>
-<h1 id="title">Round</h1><p class="sub" id="line"></p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Round · (un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23111" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23111" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23ecece6" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
+<body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
+<div class="page-nav">
+  <a class="small" href="/">← start over</a>
+  <a class="brand" href="/">(un)known</a>
+</div>
+
+<h2>Project</h2>
+<div class="card" id="project">
+  <div><b id="pname"></b></div>
+  <div class="muted small" id="pline" style="margin-top:4px"></div>
+</div>
+
 <div id="fund"></div>
 <div id="ledger" style="display:none"></div>
 <script>
-const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];let R=null;let LINK='';
+const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];let R=null;
+const KEY=new URLSearchParams(location.search).get('key')||'';
+const api=p=>p+(p.includes('?')?'&':'?')+'key='+KEY;
 const $c=c=>'$'+(c/100).toFixed(2);
-async function load(){R=await fetch('/api/rounds/'+rid).then(r=>r.json());$('#title').textContent=R.project+' · round';$('#line').textContent=R.brief.one_line;R.funded_at?ledger():fundcard()}
-function fundcard(){const p=R.price;$('#fund').innerHTML=`<h2>3 · Price the round</h2><div class="card">
-<div class="row"><span>Five interviews</span><span class="right muted small">bounty $5 each ≈ $12/h at 6 min</span></div>
-<table style="margin-top:12px"><tr><td>Inference</td><td class="r" id="inf">~${$c(p.inference_cents)}</td></tr><tr><td>Bounties</td><td class="r" id="bou">${$c(p.bounties_cents)}</td></tr><tr><td>Round fee</td><td class="r">$0.00</td></tr><tr class="total"><td>Total</td><td class="r" id="tot">${$c(p.total_cents)}</td></tr></table>
-<div class="row" style="margin-top:12px"><button id="go">Fund the round</button><span class="small muted">one signature with your wallet. The round is paid for behind this button.</span></div></div>`;
- $('#go').onclick=async()=>{$('#go').disabled=true;$('#go').textContent='Buying and activating…';const f=await fetch('/api/rounds/'+rid+'/fund',{method:'POST'}).then(r=>r.json());if(f.error){$('#go').textContent='Fund the round';$('#go').disabled=false;alert(f.error);return}sessionStorage.setItem('fund-'+rid,JSON.stringify(f));await load()}}
-function ledger(){$('#fund').innerHTML='';const L=$('#ledger');L.style.display='block';const done=R.sessions.filter(s=>s.done_at);
- L.innerHTML=`<div class="card"><div class="row"><div><div class="bal">${$c(R.key_balance_cents??R.balance_cents)}</div><div class="small muted">inference balance on your key · this round spent ${$c(R.spent_cents||0)} · ${done.length} of ${R.interviews} sessions done</div><div class="small muted" style="margin-top:4px">${$c(R.bounty_held_cents||0)} held for bounties, paid by hand${R.prep_cents?` · brief cost ${$c(R.prep_cents)}, on us`:''}</div></div>
- <div class="right small" style="text-align:right"><div class="muted">your link, send it to anyone</div><div class="mono" id="link">${location.origin}/r/${rid}</div><button class="ghost sm" id="copylink" style="margin-top:4px">copy</button></div></div>${fundnote()}</div>
- <div class="card small muted">Where to send it: your Telegram group, your last 20 wallets by DM, one KOL who's used it. The person needs nothing but the link.</div>
- <h2>Sessions</h2><div id="sess"></div>
- <div class="row" style="margin-top:16px"><a href="/round/${rid}/report"><button ${done.length?'':'disabled'}>Open the report →</button></a><span class="small muted">written when a session ends</span><button class="ghost sm right" onclick="load()">refresh</button></div>`;
- $('#copylink').onclick=()=>navigator.clipboard.writeText(location.origin+'/r/'+rid).catch(()=>{});
- const S=$('#sess');if(!R.sessions.length)S.innerHTML='<div class="card muted small">Nothing yet. Make a link and send it.</div>';
- R.sessions.forEach((s,k)=>{const d=document.createElement('div');d.className='card receipt';
-  if(!s.done_at){d.innerHTML=`Session ${k+1} · <span class="muted">${s.handle||'link opened'} · running</span>`}
-  else if(s.abandoned){const r=s.receipt;d.innerHTML=`Session ${k+1} · ${r.handle} · <span class="muted">abandoned after ${r.minutes} min · inference ${$c(r.inference_cents)} · no bounty</span>`}
-  else{const r=s.receipt;d.innerHTML=`Session ${k+1} · ${r.handle} · ${r.minutes} min${r.who?`<br><span class="muted">${r.who}</span>`:''}<br>asked ${r.asked} · followed up ${r.followed_up} · skipped ${r.skipped}<br>inference ${$c(r.inference_cents)} · bounty ${$c(r.bounty_cents)}${s.paid_at?' · paid by hand':''}<br>moved: ${r.moved.map(m=>'#'+(m.i+1)+(m.touched?' touched':' —')).join(' · ')}<br><a href="/round/${rid}/report#s-${s.id}">open session</a>`}
-  S.appendChild(d)});
+async function load(){
+  R=await fetch(api('/api/rounds/'+rid)).then(r=>r.json());
+  if(R.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">'+(R.error==='unauthorized'?'This link needs a key. Use the round link you were given.':'Round not found.')+'</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}
+  $('#pname').textContent=R.project;
+  $('#pline').textContent=R.brief.one_line;
+  R.funded_at?ledger():fundcard();
 }
-function fundnote(){try{const f=JSON.parse(sessionStorage.getItem('fund-'+rid)||'null');if(!f)return '';return `<div class="small muted" style="margin-top:8px">${f.note}${f.explorer?` · <a href="${f.explorer}" target="_blank">transaction</a>`:''}</div>`}catch{return ''}}
+function tip(body){
+  return `<details class="tip"><summary><span class="tip-i">i</span></summary><div class="tip-body">${body}</div></details>`;
+}
+function bindTips(root){
+  root.querySelectorAll('details.tip').forEach(d=>{
+    d.addEventListener('toggle',()=>{
+      if(d.open) root.querySelectorAll('details.tip[open]').forEach(o=>{ if(o!==d) o.open=false; });
+    });
+  });
+}
+if(!window.__tipOutside){
+  window.__tipOutside=true;
+  document.addEventListener('click',e=>{
+    document.querySelectorAll('details.tip[open]').forEach(d=>{
+      if(!d.contains(e.target)) d.open=false;
+    });
+  });
+}
+function fundcard(){
+  const p=R.price;
+  const n=R.interviews;
+  const b=R.bounty_cents;
+  const testing=!!R.fund_testing;
+  const model=(R.model||'').replace(/^anthropic\//,'');
+  const btn=testing?'Start the round':'Fund the round';
+  const busy=testing?'Starting…':'Buying and activating…';
+  const payLabel=testing?'$0 · chats on us':$c(p.inference_cents);
+  $('#fund').innerHTML=`<h2>Fund the round</h2><div class="card">
+<div class="small muted" style="margin:0 0 12px">${n} short chats · about 5 min each</div>
+<table class="rate">
+<tr><td>AI for this round ${tip('Chats, each session writeup, and the round synthesis on Claude Sonnet 5. Brief is on us. People you invite just open a link — no account.')}</td><td class="r">${$c(p.inference_cents)}</td></tr>
+<tr><td>Suggested bounties ${tip('What you pay each person for their time. Paid interviews get better answers and more trust. Not on-chain yet — pay them yourself for now. Coming soon.')}</td><td class="r">${$c(b)} × ${n} = ${$c(p.bounties_cents)} · by hand</td></tr>
+<tr><td>Platform fee</td><td class="r">0% · Build Week</td></tr>
+<tr class="pay-now"><td>Pay now</td><td class="r">${payLabel}</td></tr>
+</table>
+<div class="row" style="margin-top:14px"><button id="go">${btn}</button></div></div>`;
+  bindTips($('#fund'));
+  $('#go').onclick=async()=>{
+    $('#go').disabled=true;$('#go').textContent=busy;
+    const f=await fetch(api('/api/rounds/'+rid+'/fund'),{method:'POST'}).then(r=>r.json());
+    if(f.error){$('#go').textContent=btn;$('#go').disabled=false;alert(f.error);return}
+    sessionStorage.setItem('fund-'+rid,JSON.stringify(f));await load();
+  };
+}
+function ledger(){
+  $('#fund').innerHTML='';
+  const L=$('#ledger');L.style.display='block';
+  const done=R.sessions.filter(s=>s.done_at);
+  const link=location.origin+'/r/'+rid;
+  const B=R.brief||{};
+  const unknowns=B.unknowns||[];
+  const learn=unknowns.map((x,i)=>`<div class="unk"><div class="n">${i+1}</div><div class="q">${esc(x.q||'')}</div></div>`).join('')||'<div class="muted small">Nothing listed.</div>';
+  L.innerHTML=`<h2>Round</h2><div class="card">
+<div class="row" style="align-items:flex-start">
+  <div><div style="font-size:22px;font-weight:500">${done.length} of ${R.interviews}</div><div class="small muted">sessions done</div></div>
+  <div class="right" style="text-align:right;max-width:70%">
+    <div class="small muted">Invite link</div>
+    <div class="mono" id="link" style="word-break:break-all">${link}</div>
+    <button class="ghost sm" id="copylink" style="margin-top:4px">Copy link</button>
+  </div>
+</div>
+<p class="small muted" style="margin:10px 0 0">Send it to anyone. They only need the link.</p>
+</div>
+<div class="card" style="margin-top:10px">
+  <div class="row" style="align-items:flex-start">
+    <div style="flex:1;min-width:0">
+      <div class="small muted">Your round link (private)</div>
+      <div class="mono small" id="roundlink" style="word-break:break-all;margin-top:4px">${location.origin}/round/${rid}?key=${KEY}</div>
+    </div>
+    <button class="ghost sm" id="copyroundlink" style="flex:none">Copy</button>
+  </div>
+  <p class="small muted" style="margin:8px 0 0">Save this. It's how you get back.</p>
+</div>
+<details class="fold">
+  <summary>What to learn</summary>
+  <div class="card" style="margin-top:10px">${learn}</div>
+</details>
+ <h2>Report</h2>
+ <div class="row" style="margin:0 0 8px;align-items:center">
+   <a href="/round/${rid}/report?key=${KEY}"><button ${done.length?'':'disabled'}>Open the report</button></a>
+   <button type="button" class="text-btn right" onclick="load()">Refresh</button>
+ </div>
+ <h2>Sessions</h2><div id="sess"></div>`;
+  $('#copylink').onclick=async()=>{try{await navigator.clipboard.writeText(link);$('#copylink').textContent='Copied';setTimeout(()=>$('#copylink').textContent='Copy link',1500)}catch{}};
+  const roundUrl=location.origin+'/round/'+rid+'?key='+KEY;
+  $('#copyroundlink').onclick=async()=>{try{await navigator.clipboard.writeText(roundUrl);$('#copyroundlink').textContent='Copied';setTimeout(()=>$('#copyroundlink').textContent='Copy',1500)}catch{}};
+  const S=$('#sess');if(!R.sessions.length)S.innerHTML='<div class="card muted small">Nothing yet. Send the link.</div>';
+  R.sessions.forEach((s,k)=>{
+    const d=document.createElement('div');d.className='card sess-line';
+    const r=s.receipt||{};
+    const label=`Session ${k+1}`;
+    if(!s.done_at){
+      d.innerHTML=`<div class="row" style="align-items:baseline"><div><div class="sess-title">${label}</div><div class="small muted">${esc(s.handle||'link opened')} · running</div></div><span class="status opened right">running</span></div>`;
+    }else if(s.abandoned){
+      d.innerHTML=`<div class="row" style="align-items:baseline"><div><div class="sess-title">${label} · ${esc(r.handle||s.handle||'')}</div><div class="small muted">${r.minutes||'—'} min · abandoned</div></div><span class="status thin right">abandoned</span></div>`;
+    }else{
+      d.innerHTML=`<div class="row" style="align-items:flex-start"><div style="flex:1;min-width:0"><div class="sess-title">${label} · ${esc(r.handle||s.handle||'')}</div><div class="small muted">${r.minutes||'—'} min${r.who?' · '+esc(r.who):''}</div></div><a class="small sess-open" href="/round/${rid}/s/${s.id}?key=${KEY}">Open</a></div>`;
+    }
+    S.appendChild(d);
+  });
+}
+function esc(t){return String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 load();
 </script>
+<p class="small muted" style="margin-top:28px">Inference on <a href="https://www.orbio.so/" target="_blank">Orbio</a>.</p>
 </main></body></html>

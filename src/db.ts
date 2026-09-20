@@ -12,15 +12,16 @@ create table if not exists sessions (
   state text, transcript text, cost_cents integer default 0, receipt text, report text, paid_at text
 );
 `);
-for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
+for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
 export const id = () => Math.random().toString(36).slice(2, 10);
+export const secret = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 32);
 export const now = () => new Date().toISOString();
 export type Unknown = { q: string; ask?: string; because: string };
 export type Brief = { project: string; one_line: string; screener: { q: string; options: string[] }[]; opener: string; unknowns: Unknown[]; dont_ask: string[] };
 export function getRound(rid: string) {
   const r = db.prepare('select * from rounds where id=?').get(rid) as any;
   if (!r) return null;
-  return { ...r, brief: JSON.parse(r.brief) as Brief };
+  return { ...r, brief: JSON.parse(r.brief) as Brief, synthesis: r.synthesis ? JSON.parse(r.synthesis) : null, synthesis_session_ids: r.synthesis_session_ids ? JSON.parse(r.synthesis_session_ids) as string[] : [] };
 }
 export function getSession(where: 'id' | 'token', v: string) {
   const s = db.prepare(`select * from sessions where ${where}=?`).get(v) as any;

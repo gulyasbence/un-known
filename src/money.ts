@@ -7,10 +7,12 @@ import { db, now } from './db.js';
 import * as chain from './chain.js';
 
 export const live = !!chain.account;
+/** When set, Fund does not buy CREDIT; round still goes live (demo / own credits). */
+export const fundTesting = process.env.FUND_TESTING === '1' || process.env.FUND_TESTING === 'true';
 export type Fund = { tx: string; balance_cents: number; explorer?: string; note: string };
 
 export function priceRound(interviews: number, bounty_cents: number) {
-  const inference_cents = Math.round(interviews * 42); // placeholder until measured from the balance header on real sessions
+  const inference_cents = Math.round(interviews * 10); // budget envelope (~few cents on Sonnet 4.5; headroom for a pricier model)
   const bounties_cents = interviews * bounty_cents;
   const fee_cents = 0;
   return { inference_cents, bounties_cents, fee_cents, total_cents: inference_cents + bounties_cents + fee_cents };
@@ -34,10 +36,11 @@ export async function gatewayBalance(scope: 'prep' | 'round' = 'round'): Promise
 
 export async function fund(roundId: string, interviews: number, bounty_cents: number): Promise<Fund> {
   const p = priceRound(interviews, bounty_cents);
-  if (!live) {
-    console.log(`[money] stub: would check the key's balance and buyAndActivate the shortfall for ${(p.inference_cents / 100).toFixed(2)}; bounties ${(p.bounties_cents / 100).toFixed(2)} held for hand-pay`);
-    db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), 'stub', p.inference_cents, p.bounties_cents, roundId);
-    return { tx: 'stub', balance_cents: p.inference_cents, note: 'stub, no wallet configured' };
+  if (fundTesting || !live) {
+    const why = fundTesting ? 'FUND_TESTING: pay now $0, using existing Orbio credits' : 'stub, no wallet configured';
+    console.log(`[money] ${why}; budget inference $${(p.inference_cents / 100).toFixed(2)}; bounties $${(p.bounties_cents / 100).toFixed(2)} by hand`);
+    db.prepare('update rounds set funded_at=?, tx=?, balance_cents=?, bounty_held_cents=? where id=?').run(now(), fundTesting ? 'testing' : 'stub', p.inference_cents, p.bounties_cents, roundId);
+    return { tx: fundTesting ? 'testing' : 'stub', balance_cents: p.inference_cents, note: why };
   }
   // One key, one balance at the gateway. Buy only what this round is short of.
   const before = await gatewayBalance('round');

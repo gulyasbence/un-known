@@ -1,0 +1,94 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Brief · (un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23111" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23111" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23ecece6" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
+<body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
+<div class="page-nav">
+  <a class="small" href="/">← start over</a>
+  <a class="brand" href="/">(un)known</a>
+</div>
+
+<h2>Project</h2>
+<div class="card">
+  <div><b id="pname"></b></div>
+  <div class="muted small" id="pline" style="margin-top:4px"></div>
+</div>
+
+<h2>What to learn</h2>
+<div class="card" id="unknowns"></div>
+<details class="fold">
+  <summary>Before the chat</summary>
+  <div id="screener"></div>
+  <div style="margin-top:10px"><div class="small muted" style="margin-bottom:4px">the chat opens with</div><textarea id="opener" rows="2" style="min-height:0"></textarea></div>
+</details>
+
+<details class="fold">
+  <summary>Don't ask</summary>
+  <ul class="dont small" id="dont"></ul>
+  <p class="small muted" style="margin:6px 0 0">The interviewer never asks these.</p>
+</details>
+
+<div class="row" style="margin-top:16px"><button id="golive">Fund the round</button><span class="small muted" style="margin-left:10px">Free during demo</span></div>
+
+<script>
+const $=s=>document.querySelector(s);
+let brief,paste,prep;
+try{
+  const raw=sessionStorage.getItem('_brief');
+  if(!raw) throw 0;
+  const d=JSON.parse(raw);
+  if(!d||!d.brief) throw 0;
+  brief=d.brief;paste=d.paste;prep=d.prep||0;
+}catch(e){location.href='/';throw e}
+
+function reasonText(x){
+  if(!x.because)return '';
+  return String(x.because).replace(/^because:\s*/i,'').trim();
+}
+
+function render(){
+  $('#pname').textContent=brief.project;$('#pline').textContent=brief.one_line;
+  const sc=$('#screener');sc.innerHTML='';(brief.screener||[]).forEach((x,i)=>{const d=document.createElement('div');d.className='unk';d.innerHTML=`<div class="n">${i+1}</div><div class="q"><input class="sq" aria-label="Screener question"><div class="small muted" style="margin-top:4px">options, comma separated: <input class="so" style="font-size:12.5px;padding:4px 6px" aria-label="Screener options"></div></div>`;d.querySelector('.sq').value=x.q;d.querySelector('.so').value=x.options.join(', ');d.querySelector('.sq').oninput=e=>x.q=e.target.value;d.querySelector('.so').oninput=e=>x.options=e.target.value.split(',').map(v=>v.trim()).filter(Boolean);sc.appendChild(d)});
+  $('#opener').value=brief.opener||'';$('#opener').oninput=e=>brief.opener=e.target.value;
+  const u=$('#unknowns');u.innerHTML='';
+  brief.unknowns.forEach((x,i)=>{
+    if(x._origQ===undefined)x._origQ=x.q||'';
+    const d=document.createElement('div');d.className='unk';
+    d.innerHTML=`<div class="n">${i+1}</div><div class="q"><textarea rows="2" style="min-height:0" aria-label="What to learn"></textarea><div class="reason" hidden></div><details class="fold quiet ask-fold"><summary>How we'll ask</summary><textarea class="ask" rows="3" style="min-height:0;margin-top:8px" aria-label="Interviewer ask"></textarea></details></div><div class="ctl"><button data-a="up" aria-label="Move up">▲</button><button data-a="down" aria-label="Move down">▼</button><button data-a="kill" aria-label="Remove">×</button></div>`;
+    const qEl=d.querySelector('textarea:not(.ask)');
+    const reasonEl=d.querySelector('.reason');
+    const askEl=d.querySelector('.ask');
+    function paintReason(){
+      const t=reasonText(x);
+      if(!x.q.trim()||!t){reasonEl.hidden=true;reasonEl.textContent='';return}
+      reasonEl.hidden=false;
+      reasonEl.replaceChildren();
+      const ico=document.createElement('span');ico.className='reason-i';ico.title='Reason to ask';ico.setAttribute('aria-hidden','true');ico.textContent='i';
+      const body=document.createElement('span');body.className='reason-body';
+      const lab=document.createElement('span');lab.className='reason-label';lab.textContent='Reason to ask';
+      body.append(lab, document.createTextNode(' '+t));
+      reasonEl.append(ico, body);
+    }
+    qEl.value=x.q;askEl.value=x.ask||'';paintReason();
+    askEl.oninput=e=>x.ask=e.target.value;
+    qEl.oninput=e=>{
+      x.q=e.target.value;
+      if(x.q!==x._origQ){x.because=x.q.trim()?'edited by you':'';}
+      paintReason();
+    };
+    d.querySelectorAll('.ctl button').forEach(b=>b.onclick=()=>{
+      const a=b.dataset.a;
+      if(a==='kill'){
+        if(!window.confirm('Remove this from what to learn?'))return;
+        brief.unknowns.splice(i,1);
+      }
+      if(a==='up'&&i>0)[brief.unknowns[i-1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i-1]];
+      if(a==='down'&&i<brief.unknowns.length-1)[brief.unknowns[i+1],brief.unknowns[i]]=[brief.unknowns[i],brief.unknowns[i+1]];
+      render();
+    });
+    u.appendChild(d);
+  });
+  const dl=$('#dont');dl.innerHTML='';brief.dont_ask.forEach(x=>{const li=document.createElement('li');li.textContent=x;dl.appendChild(li)});
+}
+render();
+$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());location.href='/round/'+r.id+'?key='+r.key};
+</script>
+<p class="small muted" style="margin-top:28px">Inference on <a href="https://www.orbio.so/" target="_blank">Orbio</a>.</p>
+</main></body></html>

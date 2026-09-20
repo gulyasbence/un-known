@@ -1,23 +1,160 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report · Five Unknowns</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main>
-<p class="small"><a id="back" href="#">← round</a></p>
-<h1 id="title">Report</h1><p class="sub" id="line"></p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report · (un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="%23111" stroke="%23111" stroke-width="2"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="%23ecece6" stroke="%23ecece6" stroke-width="2"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
+<body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
+<div class="page-nav">
+  <a class="small" id="back" href="#">← round</a>
+  <a class="brand" href="/">(un)known</a>
+</div>
+
+<h1 id="pname"></h1>
+<p class="sub" id="line"><span id="linetext"></span> · <a href="#" id="copyroundlink" class="muted">Copy round link</a></p>
+
+<div class="card prompt-card" style="margin-bottom:28px">
+  <p class="small muted" id="copyhelp" style="margin:0">Paste into the AI that already knows your product. It will turn this into How Might We questions and a few small things to try next.</p>
+  <div class="row"><button id="copyai" disabled>Copy for your AI</button></div>
+  <details class="fold quiet">
+    <summary>View prompt</summary>
+    <pre id="aiprompt" class="mono small" style="white-space:pre-wrap;margin-top:10px">Waiting for the round report…</pre>
+  </details>
+</div>
+
+<div id="syn"></div>
+
+<h2>Sessions</h2>
 <div id="out"></div>
 <script>
-const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];$('#back').href='/round/'+rid;const $c=c=>'$'+(c/100).toFixed(2);
-const LAB={answered:'answered',opened:'opened',thin:'thin',not_asked:'not asked'};
-async function load(){const R=await fetch('/api/rounds/'+rid).then(r=>r.json());$('#title').textContent=R.project+' · report';const done=R.sessions.filter(s=>s.done_at);$('#line').textContent=`after ${done.length} session${done.length===1?'':'s'} · ${R.brief.unknowns.length} unknowns · ${$c(R.balance_cents)} left`;
- const out=$('#out');out.innerHTML='';
- for(const s of done){const full=await fetch('/api/sessions/'+s.id).then(r=>r.json());let rep=full.report;
-  const sec=document.createElement('section');sec.id='s-'+s.id;
-  const r=s.receipt;sec.innerHTML=`<div class="card receipt">Session · ${r.handle} · ${r.minutes} min${r.who?`<br><span class="muted">${r.who}</span>`:''}<br>asked ${r.asked} · followed up ${r.followed_up} · skipped ${r.skipped}<br>inference ${$c(r.inference_cents)} · bounty ${$c(r.bounty_cents)}</div><div id="rep-${s.id}"></div>`;out.appendChild(sec);
-  const box=sec.querySelector('#rep-'+s.id);
-  if(!rep){box.innerHTML=`<div class="card muted small">Writing the report from this session… <a href="#" onclick="load();return false">refresh</a></div>`;continue}
-  box.innerHTML=(rep.takeaways&&rep.takeaways.length?`<div class="change" style="margin-bottom:12px"><b>Takeaways</b><ol style="margin:6px 0 0;padding-left:18px">${rep.takeaways.map(t=>`<li>${t}</li>`).join('')}</ol></div>`:'')+rep.items.filter(it=>full.brief.unknowns[it.i]).map(it=>{const u=full.brief.unknowns[it.i];const q=it.quote?`<div class="quote">"${it.quote}" <a href="#t-${s.id}-${it.turn}" onclick="show('${s.id}',${it.turn})">${r.handle} ▸</a></div>`:'';return `<div class="card"><div class="row"><b>${it.i+1}</b><span>${u.q}</span></div><div style="margin:6px 0 0"><span class="status ${it.status}">${LAB[it.status]}</span> <span>${it.claim}</span></div>${q}</div>`}).join('')+
-  `${rep.surprising?`<div class="card small"><b>Surprising or contradictory:</b> ${rep.surprising}</div>`:''}<div class="change"><b>If this is true, change:</b> ${rep.change_if_true}</div><p class="small muted">Still open: ${rep.still_open.length?rep.still_open.map(n=>'#'+n).join(', '):'none'}. One session. Fund more to close them.</p>
-  <details class="card"><summary class="small">the session, ${full.transcript.length} turns</summary><div class="chat" style="margin-top:10px" id="tr-${s.id}">${full.transcript.map((t,i)=>`<div class="msg ${t.role}" id="t-${s.id}-${i}">${t.text}</div>`).join('')}</div></details>`}
- if(!done.length)out.innerHTML='<div class="card muted">No finished session yet.</div>'}
-window.show=(sid,turn)=>{const d=document.querySelector(`#s-${sid} details`);d.open=true;const el=document.getElementById(`t-${sid}-${turn}`);if(el){el.classList.add('hl');el.scrollIntoView({block:'center'})}};
+const $=s=>document.querySelector(s);const rid=location.pathname.split('/')[2];
+const KEY=new URLSearchParams(location.search).get('key')||'';
+const api=p=>p+(p.includes('?')?'&':'?')+'key='+KEY;
+$('#back').href='/round/'+rid+'?key='+KEY;
+const roundUrl=location.origin+'/round/'+rid+'?key='+KEY;
+$('#copyroundlink').onclick=async(e)=>{e.preventDefault();try{await navigator.clipboard.writeText(roundUrl);$('#copyroundlink').textContent='Copied';setTimeout(()=>$('#copyroundlink').textContent='Copy round link',1500)}catch{}};
+const esc=t=>String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+let PACK=null;
+function buildPaste(R, syn){
+  const B=R.brief||{};
+  const n=(R.sessions||[]).filter(s=>s.done_at).length;
+  const learn=(B.unknowns||[]).map((u,i)=>`${i+1}. ${u.q||''}`).join('\n');
+  const takes=(syn.takeaways||[]).map(t=>`- ${t}`).join('\n')||'- (none)';
+  return `I'm the founder of ${B.project||R.project} (${B.one_line||''}).
+I just ran short user interviews through (un)known. Below is the round synthesis — not raw transcripts.
+
+Do this:
+1. Write 5 How Might We questions grounded only in what showed up below. Concrete to this product. No generic UX HMWs.
+   Each HMW should name a real tension or unmet need (problem-focused), assume a good answer exists (optimistic), and stay open — no UI control, feature, or solution baked into the question. Save the solution for the bets.
+2. Then 3 small next bets I could ship or test in a week. Each one sentence. Tied to a takeaway or the "if true, change" line. These can name a concrete move; the HMWs should not.
+3. Call out anything below that is still too thin to act on.
+
+Don't restate the takeaways as bullet praise. Don't invent users or quotes I didn't give you.
+
+---
+WHAT WE SET OUT TO LEARN
+${learn||'(none)'}
+
+AFTER ${n} SESSION${n===1?'':'S'}
+
+Takeaways
+${takes}
+
+If this is true, change
+${syn.change_if_true||'(none)'}
+
+Where they disagree / still thin
+${syn.disagree_or_thin||'(none)'}
+---`;
+}
+function setCopyReady(on){
+  const b=$('#copyai');
+  b.disabled=!on;
+  b.textContent='Copy for your AI';
+}
+$('#copyai').onclick=async()=>{
+  if(!PACK)return;
+  try{
+    await navigator.clipboard.writeText(PACK);
+    $('#copyai').textContent='Copied';
+    setTimeout(()=>{$('#copyai').textContent='Copy for your AI'},1500);
+  }catch{alert('Could not copy.');}
+};
+function paintSyn(syn, waiting){
+  const box=$('#syn');
+  if(waiting){
+    box.innerHTML=`<h2>Round takeaways</h2><div class="card muted small"><span class="wait-dots" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>Writing the round report…</div>`;
+    setCopyReady(false);
+    return;
+  }
+  if(!syn){box.innerHTML='';setCopyReady(false);return}
+  const takes=(syn.takeaways||[]).map(t=>`<li>${esc(t)}</li>`).join('');
+  box.innerHTML=`
+<h2>Takeaways</h2>
+<div class="card takeaways"><ol>${takes||'<li class="muted">None yet.</li>'}</ol></div>
+${syn.change_if_true?`<h2>If this is true, change</h2><div class="change">${esc(syn.change_if_true)}</div>`:''}
+${syn.disagree_or_thin?`<h2>Where they disagree / still thin</h2><div class="card">${esc(syn.disagree_or_thin)}</div>`:''}
+`;
+}
+async function load(){
+  const R=await fetch(api('/api/rounds/'+rid)).then(r=>r.json());
+  if(R.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">'+(R.error==='unauthorized'?'This link needs a key.':'Round not found.')+'</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}
+  $('#pname').textContent=R.project;
+  const done=R.sessions.filter(s=>s.done_at);
+  $('#linetext').textContent=done.length?`Report · after ${done.length} session${done.length===1?'':'s'}`:'Report · no finished sessions yet';
+  const out=$('#out');out.innerHTML='';
+  PACK=null;setCopyReady(false);
+  if(!done.length){
+    paintSyn(null);
+    $('#aiprompt').textContent='Waiting for the round report…';
+    out.innerHTML='<div class="card muted small">Nothing to report yet. Send the invite link.</div>';
+    return;
+  }
+  let syn=R.synthesis;
+  if(R.synthesis_stale||!syn){
+    if(syn) paintSyn(syn); else paintSyn(null,true);
+    try{
+      const res=await fetch(api('/api/rounds/'+rid+'/synthesis'),{method:'POST'});
+      const j=await res.json().catch(()=>({error:'Synthesis failed.'}));
+      if(res.ok&&!j.error) syn=j;
+      else paintSyn(null);
+    }catch{paintSyn(null)}
+  }
+  if(syn){
+    paintSyn(syn);
+    PACK=buildPaste(R, syn);
+    $('#aiprompt').textContent=PACK;
+    setCopyReady(true);
+  }else{
+    $('#aiprompt').textContent='Waiting for the round report…';
+  }
+
+  let n=0;
+  for(const s of done){
+    n+=1;
+    const full=await fetch(api('/api/sessions/'+s.id)).then(r=>r.json());
+    const rep=full.report;
+    const r=s.receipt||{};
+    const href=`/round/${rid}/s/${s.id}?key=${KEY}`;
+    const who=r.who?`<div class="small muted" style="margin-top:4px">${esc(r.who)}</div>`:'';
+    let body='';
+    if(!rep) body=`<div class="small muted" style="margin-top:10px">Writing the report…</div>`;
+    else {
+      const takes=(rep.takeaways&&rep.takeaways.length)?`<ol class="report-index-takes">${rep.takeaways.slice(0,3).map(t=>`<li>${esc(t)}</li>`).join('')}</ol>`:'';
+      const change=rep.change_if_true?`<div class="small" style="margin-top:10px"><span class="muted">If true, change</span><div style="margin-top:4px">${esc(rep.change_if_true)}</div></div>`:'';
+      body=takes+change;
+      if(!takes&&!change){
+        const answered=(rep.items||[]).filter(it=>it.status==='answered').length;
+        body=`<div class="small muted" style="margin-top:10px">${answered} of ${(rep.items||[]).length} questions answered</div>`;
+      }
+    }
+    const card=document.createElement('a');
+    card.href=href;card.className='card sess-line report-index-card';
+    card.innerHTML=`<div class="row" style="align-items:flex-start">
+  <div style="flex:1;min-width:0">
+    <div class="sess-title">Session ${n} · ${esc(r.handle||s.handle||'someone')}</div>
+    <div class="small muted">${r.minutes??'—'} min</div>${who}${body}
+  </div>
+  <span class="small sess-open">Open</span>
+</div>`;
+    out.appendChild(card);
+  }
+}
 load();
 </script>
 </main></body></html>
