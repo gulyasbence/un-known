@@ -93,7 +93,7 @@ function render(){
   return true;
 }
 if(render()){
-$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());location.href='/round/'+r.id+'?key='+r.key};
+$('#golive').onclick=async()=>{brief.unknowns=brief.unknowns.filter(x=>x.q.trim()).map(({_origQ,...rest})=>rest);const r=await fetch('/api/rounds',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,interviews:5,bounty_cents:500,paste,prep_cents:prep})}).then(r=>r.json());try{sessionStorage.setItem('_from_brief',r.id)}catch{};location.href='/round/'+r.id+'?key='+r.key};
 }
 </script>
 </main></body></html>

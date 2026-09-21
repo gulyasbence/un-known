@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Round · (un)known</title><link rel="stylesheet" href="/static/style.css"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23111" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23111" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: light)"><link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M4 16s5-7 12-7 12 7 12 7-5 7-12 7S4 16 4 16z" fill="none" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="3.5" fill="none" stroke="%23ecece6" stroke-width="2"/><line x1="6" y1="6" x2="26" y2="26" stroke="%23ecece6" stroke-width="2" stroke-linecap="round"/></svg>' media="(prefers-color-scheme: dark)"><script src="/static/theme.js"></script></head>
 <body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
 <div class="page-nav">
-  <a class="small" href="/">← start over</a>
+  <a class="small" id="back" href="#" hidden>← edit brief</a>
   <span class="brandmark"><a class="brand" href="/">(un)known</a><span class="by">powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">Orbio</a></span></span>
 </div>
 
@@ -44,6 +44,10 @@ if(!window.__tipOutside){
   });
 }
 function fundcard(){
+  // Only the tab that made this brief can go back to it: the draft lives in its sessionStorage.
+  let cameFromBrief=false;
+  try{cameFromBrief=sessionStorage.getItem('_from_brief')===rid&&!!sessionStorage.getItem('_brief')}catch{}
+  if(cameFromBrief){const b=$('#back');b.hidden=false;b.onclick=e=>{e.preventDefault();history.back()}}
   const p=R.price;
   const n=R.interviews;
   const b=R.bounty_cents;
