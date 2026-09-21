@@ -27,7 +27,10 @@ function checkKey(c: any, r: any) {
   return k === r.secret;
 }
 
-app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT }));
+// A finished round to show visitors, and which rounds are demos. Both from env so no round key lives in the repo.
+const DEMO_URL = process.env.DEMO_URL || null;
+const DEMO_IDS = (process.env.DEMO_ROUND_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT, demo_url: DEMO_URL }));
 app.get('/api/health', async c => {
   const auth = c.req.header('authorization');
   if (auth !== `Bearer ${process.env.HEALTH_TOKEN || 'local'}`) return c.json({ error: 'unauthorized' }, 403);
@@ -124,7 +127,7 @@ app.get('/api/rounds/:id', async c => {
     .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report, abandoned: !!JSON.parse(s.state).abandoned }));
   const spent_cents = sessions.reduce((a, s) => a + (s.cost_cents || 0), 0);
   const key = r.funded_at ? await gatewayBalance('round').catch(() => null) : null;
-  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null, fund_testing: fundTesting || !moneyLive, model: MODEL, synthesis_stale: synthesisStale(r, sessions.filter(x => x.done_at).map(x => x.id)) });
+  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null, fund_testing: fundTesting || !moneyLive, model: MODEL, demo: DEMO_IDS.includes(r.id), synthesis_stale: synthesisStale(r, sessions.filter(x => x.done_at).map(x => x.id)) });
 });
 app.post('/api/rounds/:id/fund', async c => {
   const r = getRound(c.req.param('id'));

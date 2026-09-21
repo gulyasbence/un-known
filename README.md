@@ -41,7 +41,7 @@ This path has been run for real. Sep 17: 2.10 USDG in, 2.80 CREDIT out, one fill
 
 **Two keys.** The brief runs on the product's own key and is free to the founder; the round page says "on us". Sessions and reports run on the round's wallet-derived key, which is the balance `buyAndActivate` filled. The receipt can then say whose money paid for what. On the live demo this is collapsed to one key by `TEST_ON_PREP_KEY=1`, so sessions spend the Build Week allowance alongside the brief; unset it and the split above is what runs.
 
-**Spend is metered per session.** During a chat each call is estimated from token counts at list prices; when the session ends the cost is corrected against the gateway's own number, the change in the key's lifetime `used` between the session's first and last call. That counter belongs to the key, so two sessions running at the same time on one key charge each other. Measured on real rounds: 1 to 11 cents per session, most of them 3 to 7.
+**Spend is metered per session.** During a chat each call is estimated from token counts at list prices; when the session ends the cost is corrected against the gateway's own number, the change in the key's lifetime `used` between the session's first and last call. That counter belongs to the key, so two sessions running at the same time on one key charge each other. Measured on real rounds: 3 to 7 cents per session on Sonnet 4.5, 7 to 11 on Sonnet 5. The five-interview demo round cost 49 cents.
 
 The Orbio-facing code is small and sits in two files: `src/money.ts` (fund, balance, charge, payout) and `src/chain.ts` (viem, contracts, key derivation). ABIs in `abi/` are Orbio's published integration subsets.
 
@@ -54,7 +54,7 @@ The live demo runs on the $50 Orbio allowance from Build Week. Two flags are set
 Two other things the UI states but worth repeating here:
 
 - Suggested bounties are paid by hand. The round holds the amount and the receipt shows it, and nothing moves on chain to the person who answered. Paying them in CREDIT is the next loop to build.
-- The round price is a budget envelope. 10 cents per interview against a measured 3 to 7, with headroom for a more expensive model. Pricing it properly needs more rounds than a week gives.
+- The round price is a budget envelope. 10 cents per interview, which Sonnet 5 sessions run right up against (7 to 11 measured). Pricing it properly needs more rounds than a week gives.
 
 Everything else is live: the gateway, the wallet-derived key, `buyAndActivate`, per-session metering, the receipt, and the whole flow end to end with real people answering.
 

@@ -23,6 +23,7 @@ async function load(){
   if(R.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">'+(R.error==='unauthorized'?'This link needs a key. Use the round link you were given.':'Round not found.')+'</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}
   $('#pname').textContent=R.project;
   $('#pline').textContent=R.brief.one_line;
+  if(R.demo&&!$('#demotag')){const d=document.createElement('div');d.id='demotag';d.className='small muted';d.style.marginTop='8px';d.textContent='Demo project, test sessions.';$('#project').appendChild(d)}
   R.funded_at?ledger():fundcard();
 }
 function tip(body){
@@ -64,6 +65,7 @@ function fundcard(){
 <tr><td>Platform fee</td><td class="r">0% · Build Week</td></tr>
 <tr class="pay-now"><td>Pay now</td><td class="r">${payLabel}</td></tr>
 </table>
+${testing?'<p class="small muted" style="margin:12px 0 0">Build Week covers the AI cost. Normally this step buys CREDIT for the round.</p>':''}
 <div class="row" style="margin-top:14px"><button id="go">${btn}</button></div></div>`;
   bindTips($('#fund'));
   $('#go').onclick=async()=>{

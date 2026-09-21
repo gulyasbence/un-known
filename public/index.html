@@ -2,6 +2,7 @@
 <body><button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">◐</button><main>
 <h1><span class="brandmark"><a class="brand" href="/">(un)known</a><span class="by">powered by <a href="https://www.orbio.so/?ref=3e194c38c29748e794673f3f81d2a850" target="_blank" rel="noopener">Orbio</a></span></span></h1>
 <p class="sub">Turn "I don't know" into a few usable insights.</p>
+<p class="small muted" id="demo" hidden style="margin:-6px 0 22px"><a id="demolink" href="#">See a finished round →</a></p>
 
 <details class="fold rule-after" style="margin:0 0 22px">
   <summary>How it works</summary>
@@ -58,7 +59,7 @@ const WAIT=[
   'Drafting the asks…',
   'Almost there…'
 ];
-fetch('/api/meta').then(r=>r.json()).then(m=>{$('#prompt').textContent=m.copy_prompt;window.PROMPT=m.copy_prompt});
+fetch('/api/meta').then(r=>r.json()).then(m=>{$('#prompt').textContent=m.copy_prompt;window.PROMPT=m.copy_prompt;if(m.demo_url){$('#demolink').href=m.demo_url;$('#demo').hidden=false}});
 $('#copy').onclick=async()=>{await navigator.clipboard.writeText(window.PROMPT);$('#copy').textContent='Copied';setTimeout(()=>$('#copy').textContent='Copy the prompt for your AI',1500)};
 $('#read').disabled=true;
 $('#paste').oninput=()=>{$('#read').disabled=!$('#paste').value.trim()};

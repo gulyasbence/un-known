@@ -95,6 +95,7 @@ async function load(){
   const R=await fetch(api('/api/rounds/'+rid)).then(r=>r.json());
   if(R.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">'+(R.error==='unauthorized'?'This link needs a key.':'Round not found.')+'</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}
   $('#pname').textContent=R.project;
+  if(R.demo&&!$('#demotag')){const d=document.createElement('p');d.id='demotag';d.className='small muted';d.style.margin='-8px 0 18px';d.textContent='Demo project, test sessions.';$('#line').after(d)}
   const done=R.sessions.filter(s=>s.done_at);
   $('#linetext').textContent=done.length?`Report · after ${done.length} session${done.length===1?'':'s'}`:'Report · no finished sessions yet';
   const out=$('#out');out.innerHTML='';
@@ -102,7 +103,7 @@ async function load(){
   if(!done.length){
     paintSyn(null);
     $('#aiprompt').textContent='Waiting for the round report…';
-    out.innerHTML='<div class="card muted small">Nothing to report yet. Send the invite link.</div>';
+    out.innerHTML='<div class="card muted small">Nothing to report yet. Send the invite link. Copy for your AI unlocks after the first finished chat.</div>';
     return;
   }
   let syn=R.synthesis;
