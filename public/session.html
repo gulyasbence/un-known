@@ -74,12 +74,13 @@
 const $=s=>document.querySelector(s);const tok=location.pathname.split('/')[2];let S=null;
 async function load(){S=await fetch('/api/s/'+tok).then(r=>r.json());if(S.error){document.querySelector('main').innerHTML='<h1>(un)known</h1><p class="sub">This session link is expired or invalid.</p><p class="small muted" style="margin-top:20px"><a href="/">&#8592; start over</a></p>';return}if(S.state.done||S.transcript.length>1)start();else deal()}
 let SCREEN=[];
-function isMulti(q){return /all that apply|select all|tap all/i.test(q.q||'')}
+// The brief always makes the second screener question multi-select; the wording may or may not say so.
+function isMulti(q,i){return i===1||/all that apply|select all|tap all/i.test(q.q||'')}
 function cleanQ(q){return String(q.q||'').replace(/\s*\((?:tap |select )?all that apply\)\s*/gi,'').trim()}
 function deal(){
   document.title=(S.project?S.project+' · ':'')+'(un)known';
   const qs=(S.screener||[]).map((q,i)=>{
-    const multi=isMulti(q);
+    const multi=isMulti(q,i);
     const label=cleanQ(q);
     const hint=multi?' <span class="deal-q-hint">all that apply</span>':'';
     const opts=(q.options||[]).map(o=>`<button type="button" data-o="${o.replace(/"/g,'&quot;')}" aria-pressed="false">${o}</button>`).join('');
