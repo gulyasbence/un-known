@@ -30,6 +30,20 @@ function checkKey(c: any, r: any) {
 // A finished round to show visitors, and which rounds are demos. Both from env so no round key lives in the repo.
 const DEMO_URL = process.env.DEMO_URL || null;
 const DEMO_IDS = (process.env.DEMO_ROUND_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+// What leaves the server about a round. The stored paste is the founder's raw context and no page needs it back;
+// the secret is already in the caller's URL; the "because" lines quote the paste. None of it is returned.
+function publicBrief(b: Brief) { return { ...b, unknowns: b.unknowns.map(({ because, ...u }) => u) }; }
+function publicRound(r: any) { const { paste, secret, ...rest } = r; return { ...rest, brief: publicBrief(r.brief) }; }
+// Demo rounds can rename the people in them (handles, and mentions inside writeups) without touching stored data.
+const DEMO_ALIASES: [RegExp, string][] = Object.entries(JSON.parse(process.env.DEMO_ALIASES || '{}') as Record<string, string>)
+  .sort((a, b) => b[0].length - a[0].length)
+  .map(([from, to]) => [new RegExp(`\\b${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), to]);
+function aliased<T>(rid: string, obj: T): T {
+  if (!DEMO_IDS.includes(rid) || !DEMO_ALIASES.length) return obj;
+  let s = JSON.stringify(obj);
+  for (const [re, to] of DEMO_ALIASES) s = s.replace(re, to);
+  return JSON.parse(s);
+}
 app.get('/api/meta', c => c.json({ live, model: MODEL, money_live: moneyLive, copy_prompt: COPY_PROMPT, demo_url: DEMO_URL }));
 app.get('/api/health', async c => {
   const auth = c.req.header('authorization');
@@ -126,8 +140,7 @@ app.get('/api/rounds/:id', async c => {
   const sessions = (db.prepare('select * from sessions where round_id=? order by created_at').all(r.id) as any[])
     .map(s => ({ id: s.id, token: s.token, handle: s.handle, created_at: s.created_at, done_at: s.done_at, cost_cents: s.cost_cents, receipt: s.receipt ? JSON.parse(s.receipt) : null, paid_at: s.paid_at, has_report: !!s.report, abandoned: !!JSON.parse(s.state).abandoned }));
   const spent_cents = sessions.reduce((a, s) => a + (s.cost_cents || 0), 0);
-  const key = r.funded_at ? await gatewayBalance('round').catch(() => null) : null;
-  return c.json({ ...r, price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, key_balance_cents: key ? Math.round(key.available * 100) : null, fund_testing: fundTesting || !moneyLive, model: MODEL, demo: DEMO_IDS.includes(r.id), synthesis_stale: synthesisStale(r, sessions.filter(x => x.done_at).map(x => x.id)) });
+  return c.json(aliased(r.id, { ...publicRound(r), price: priceRound(r.interviews, r.bounty_cents), sessions, spent_cents, fund_testing: fundTesting || !moneyLive, model: MODEL, demo: DEMO_IDS.includes(r.id), synthesis_stale: synthesisStale(r, sessions.filter(x => x.done_at).map(x => x.id)) }));
 });
 app.post('/api/rounds/:id/fund', async c => {
   const r = getRound(c.req.param('id'));
@@ -273,7 +286,7 @@ app.post('/api/sessions/:id/report', async c => {
   if (!s) return c.json({ error: 'not found' }, 404);
   const r = getRound(s.round_id);
   if (!r || !checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
-  return c.json(await writeReport(c.req.param('id')));
+  return c.json(aliased(r.id, await writeReport(c.req.param('id'))));
 });
 app.post('/api/rounds/:id/synthesis', async c => {
   const r = getRound(c.req.param('id'));
@@ -282,7 +295,7 @@ app.post('/api/rounds/:id/synthesis', async c => {
   try {
     const syn = await writeSynthesis(c.req.param('id'));
     if (!syn) return c.json({ error: 'No finished sessions yet.' }, 400);
-    return c.json(syn);
+    return c.json(aliased(r.id, syn));
   } catch (e) {
     console.error('[synthesis]', e);
     return c.json({ error: 'Synthesis failed. Try again.' }, 502);
@@ -293,7 +306,7 @@ app.get('/api/sessions/:id', c => {
   if (!s) return c.json({ error: 'not found' }, 404);
   const r = getRound(s.round_id)!;
   if (!checkKey(c, r)) return c.json({ error: 'unauthorized' }, 403);
-  return c.json({ ...s, brief: r.brief, round_id: r.id });
+  return c.json(aliased(r.id, { ...s, brief: publicBrief(r.brief), round_id: r.id }));
 });
 
 const port = Number(process.env.PORT || 3010);
