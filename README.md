@@ -58,6 +58,32 @@ Two other things the UI states but worth repeating here:
 
 Everything else is live: the gateway, the wallet-derived key, `buyAndActivate`, per-session metering, the receipt, and the whole flow end to end with real people answering.
 
+## Next: interviews where the complaints already are
+
+This was built during Build Week, before Orbio's launchpad and tools catalogue went live. Seeing them made me think through where (un)known goes from here.
+
+Crypto users already say what's broken, in public, on X. The next version goes there instead of asking founders to recruit.
+
+It runs on its own, all the time:
+
+- It listens on X for complaints and friction around crypto products.
+- When one is specific enough, it replies with one question about the last time it happened.
+- It follows up once or twice in the same thread if the person answers.
+- As answers pile up around the same product or problem, the existing session writeup and round synthesis turn them into findings.
+- Findings get posted back to X, tagging the project.
+
+Nothing in this section is built yet. The interview and synthesis logic above is what it reuses.
+
+### What Orbio's tools cover today
+
+Checked against the public tool catalogue (`GET /api/v1/tools`), Sep 27. Not yet tested with a live call.
+
+- Reading X covers the whole loop. `social.x.posts` searches with X operators, reads replies under a post (`conversation_id`) and reads mentions. `social.x.profile` is enough to screen who is answering.
+- Posting doesn't yet. `social.post` publishes standalone text only: no reply to a post id, no threads, no quotes, and no links on X. Zernio, the provider behind it, supports replies and threads, so this is a pass-through Orbio could add.
+- Cost is small. At 20 posts a day plus reply checks on 20 threads, the X tools come to roughly 5 CREDIT a week before inference.
+
+Until `social.post` can reply, replies would go out through Zernio or the X API directly, with search and all model calls staying on Orbio.
+
 ## Stack
 
 Hono and TypeScript on Node 24, `node:sqlite` for storage, the OpenAI SDK pointed at Orbio, viem for the chain, plain HTML and CSS in `public/` with no build step and no framework. Deployed on Fly.
