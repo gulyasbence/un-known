@@ -1,9 +1,10 @@
 // Would the agent reply, and what would it ask? Posts nothing, replies to nobody.
 // Input: the real, specific complaints from one search-quality sample. For each post,
 // Sonnet 5 first checks whether it's the poster's own experience, then decides reply or skip
-// and drafts the one question. One reply per conversation. Compared against Bence's own calls
-// (never sent to the model) and against the previous run's drafts.
-// v1 (commit fe0b940) wrote data/draft-tests/2026-09-28.json; this version writes -v2.
+// and drafts the one question. One reply per exchange (grouped by what each post directly replies to),
+// and at most 2 replies per brand post per day. Compared against Bence's own calls (never sent to
+// the model) and against the previous run's drafts.
+// v1 (fe0b940) wrote data/draft-tests/2026-09-28.json, v2 (33e59b8) -v2.json; this version writes -v3.
 // Run: pnpm exec tsx scripts/test-draft-questions.ts
 import 'dotenv/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -14,8 +15,9 @@ const KEY = process.env.ORBIO_API_KEY;
 if (!KEY) { console.error('ORBIO_API_KEY is not set in .env'); process.exit(1); }
 
 const SAMPLE = 'data/search-samples/2026-09-28-20-52-handles.json';
-const PREVIOUS = 'data/draft-tests/2026-09-28.json';
-const OUT = 'data/draft-tests/2026-09-28-v2.json';
+const PREVIOUS = 'data/draft-tests/2026-09-28-v2.json';
+const OUT = 'data/draft-tests/2026-09-28-v3.json';
+const BRAND_POST_CAP = 2;   // replies per brand post per day
 const MAX_AGE_HOURS = 48;
 const MAX_CHARS = 200;
 
@@ -72,7 +74,7 @@ Return JSON only:
 {"own_experience": "yes" | "no" | "unclear", "decision": "reply" | "skip", "skip_reason": string | null, "question": string | null, "moment": string | null, "confidence": number, "why": string}
 "question" and "moment" are null when you skip; "skip_reason" is null when you reply. "moment" names the moment the question is about, in a few words.`;
 
-type Row = { product: string; source: string; handle: string; followers: number | null; id: string; created: string; age_hours: number; text: string; context?: string; conversation_id: string | null };
+type Row = { product: string; brand: string; source: string; handle: string; followers: number | null; id: string; created: string; age_hours: number; text: string; context?: string; conversation_id: string | null; in_reply_to: string | null; in_reply_to_handle: string | null };
 
 // ---------- Input: the same 18 posts, with their conversation where the saved data knows it
 const sample = JSON.parse(readFileSync(SAMPLE, 'utf8'));
@@ -84,7 +86,7 @@ for (const [product, v] of Object.entries<any>(sample.products)) {
       if (p.label !== 'real_complaint' || !p.specific) continue;
       // replies-source posts came from reading a root's thread: that root is their conversation
       const root = source === 'replies' ? (v.replies.roots ?? []).find((r: any) => r.text === p.context) : null;
-      rows.push({ product, source, handle: p.handle, followers: p.followers, id: p.id, created: p.created, text: p.text, context: p.context,
+      rows.push({ product, brand: v.handle, in_reply_to: null, in_reply_to_handle: null, source, handle: p.handle, followers: p.followers, id: p.id, created: p.created, text: p.text, context: p.context,
         conversation_id: p.conversation_id ?? root?.id ?? null,
         age_hours: Math.round((now.getTime() - new Date(p.created).getTime()) / 36e5 * 10) / 10 });
     }
@@ -97,7 +99,7 @@ await init();
 const start = await gatewayBalance('prep');
 
 // ---------- Draft each post
-type Result = Row & Draft & { flags: string[]; human: string; match: boolean; prev_decision?: string; prev_question?: string | null };
+type Result = Row & Draft & { flags: string[]; human: string; match: boolean; prev_decision?: string; prev_skip_reason?: string | null; prev_question?: string | null };
 const results: Result[] = [];
 for (const r of rows) {
   const user = [
@@ -127,16 +129,16 @@ for (const r of rows) {
   } else if (!SKIP_REASONS.includes(d.skip_reason as any)) flags.push(`unknown skip_reason ${d.skip_reason}`);
 
   const prev = previous.get(r.id);
-  results.push({ ...r, ...d, flags, human: HUMAN[r.handle] ?? 'unknown', match: false, prev_decision: prev?.decision, prev_question: prev?.question ?? null });
+  results.push({ ...r, ...d, flags, human: HUMAN[r.handle] ?? 'unknown', match: false, prev_decision: prev?.decision, prev_skip_reason: prev?.skip_reason ?? null, prev_question: prev?.question ?? null });
   process.stdout.write('.');
 }
 console.log();
 
-// ---------- One reply per conversation
-// Search-source posts don't carry their conversation in the saved data: look it up, read-only,
-// only for posts the agent would reply to (the only ones that can collide).
+// ---------- One reply per exchange, and a cap per brand post
+// The saved sample doesn't carry what each post replies to. Look it up, read-only, for the posts the
+// agent would reply to (the only ones that can collide): read the poster's recent posts and find this one.
 let lookupCost = 0;
-for (const r of results.filter(x => x.decision === 'reply' && !x.conversation_id)) {
+for (const r of results.filter(x => x.decision === 'reply')) {
   const res = await fetch('https://api.orbio.so/api/v1/tools/social.x.posts', {
     method: 'POST',
     headers: { authorization: `Bearer ${KEY}`, 'content-type': 'application/json' },
@@ -145,16 +147,43 @@ for (const r of results.filter(x => x.decision === 'reply' && !x.conversation_id
   const j: any = await res.json().catch(() => null);
   lookupCost += Number(j?.cost?.credit ?? 0);
   const hit = (j?.result?.tweets ?? []).find((t: any) => String(t.id_str) === r.id);
-  r.conversation_id = hit?.conversation_id_str ?? null;
-  if (!hit) r.flags.push('conversation not found in their recent posts');
+  if (!hit) { r.flags.push('not found in their recent posts, so its parent is unknown'); continue; }
+  r.conversation_id = hit.conversation_id_str ?? r.conversation_id;
+  r.in_reply_to = hit.in_reply_to_status_id_str ?? null;
+  r.in_reply_to_handle = hit.in_reply_to_screen_name ?? null;
+}
+const isBrand = (r: Result) => !!r.in_reply_to_handle && r.in_reply_to_handle.toLowerCase() === r.brand.toLowerCase();
+
+// Union posts into exchanges: two posts replying to each other, or to the same non-brand post, are one
+// exchange. Separate replies directly under a brand post stay separate.
+const parent = new Map<string, string>();
+const find = (x: string): string => { const p = parent.get(x) ?? x; if (p === x) return x; const r = find(p); parent.set(x, r); return r; };
+const union = (a: string, b: string) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+const cands = results.filter(x => x.decision === 'reply');
+const candIds = new Set(cands.map(c => c.id));
+for (const r of cands) {
+  if (!r.in_reply_to) continue;
+  if (candIds.has(r.in_reply_to)) union(r.id, r.in_reply_to);           // replying to another candidate
+  else if (!isBrand(r)) union(r.id, `parent:${r.in_reply_to}`);         // same non-brand parent
 }
 const specificity = (r: Result) => (r.text.match(/\d/g)?.length ?? 0) + r.text.length / 100;   // tie-break: numbers and detail
-const byConv = new Map<string, Result[]>();
-for (const r of results.filter(x => x.decision === 'reply' && x.conversation_id)) byConv.set(r.conversation_id!, [...(byConv.get(r.conversation_id!) ?? []), r]);
-for (const group of byConv.values()) {
+const rank = (a: Result, b: Result) => b.confidence - a.confidence || specificity(b) - specificity(a);
+const groups = new Map<string, Result[]>();
+for (const r of cands) groups.set(find(r.id), [...(groups.get(find(r.id)) ?? []), r]);
+for (const group of groups.values()) {
   if (group.length < 2) continue;
-  const keep = [...group].sort((a, b) => b.confidence - a.confidence || specificity(b) - specificity(a))[0];
-  for (const r of group) if (r !== keep) Object.assign(r, { decision: 'skip', skip_reason: 'same_conversation', why: `same thread as @${keep.handle}, which ranks higher` });
+  const keep = [...group].sort(rank)[0];
+  for (const r of group) if (r !== keep) Object.assign(r, { decision: 'skip', skip_reason: 'same_conversation', why: `same exchange as @${keep.handle}, which ranks higher` });
+}
+// Cap: at most BRAND_POST_CAP replies under one brand post per day.
+const underBrand = new Map<string, Result[]>();
+for (const r of results.filter(x => x.decision === 'reply' && isBrand(x) && x.in_reply_to)) {
+  const k = `${r.in_reply_to}|${r.created.slice(0, 10)}`;
+  underBrand.set(k, [...(underBrand.get(k) ?? []), r]);
+}
+for (const group of underBrand.values()) {
+  const sorted = [...group].sort(rank);
+  for (const r of sorted.slice(BRAND_POST_CAP)) Object.assign(r, { decision: 'skip', skip_reason: 'brand_post_cap', why: `already ${BRAND_POST_CAP} replies under this brand post today` });
 }
 for (const r of results) r.match = r.human === 'maybe' || r.human === r.decision;
 
@@ -167,28 +196,29 @@ const ranked = [...results].sort((a, b) =>
   (a.decision === b.decision ? 0 : a.decision === 'reply' ? -1 : 1) || b.confidence - a.confidence || a.age_hours - b.age_hours);
 
 console.log('\n=== 1. Ranking');
-console.log('rank  handle           product  own      agent  skip_reason           conf  human  match');
+console.log('rank  handle           product  own      agent  skip_reason           conf  human  match  v2');
 ranked.forEach((r, i) => console.log(
-  `${String(i + 1).padStart(4)}  ${('@' + r.handle).padEnd(16)} ${r.product.padEnd(8)} ${r.own_experience.padEnd(8)} ${r.decision.padEnd(6)} ${String(r.skip_reason ?? '').padEnd(21)} ${String(r.confidence).padStart(4)}  ${r.human.padEnd(6)} ${r.match ? 'yes' : 'NO'}\n      ${r.why}`));
+  `${String(i + 1).padStart(4)}  ${('@' + r.handle).padEnd(16)} ${r.product.padEnd(8)} ${r.own_experience.padEnd(8)} ${r.decision.padEnd(6)} ${String(r.skip_reason ?? '').padEnd(21)} ${String(r.confidence).padStart(4)}  ${r.human.padEnd(6)} ${(r.match ? 'yes' : 'NO').padEnd(5)}  ${r.prev_decision ?? '-'}${r.prev_skip_reason ? ` (${r.prev_skip_reason})` : ''}\n      ${r.why}`));
 
-console.log('\n=== 2. Drafted questions, as they would appear (last run beside it)');
+console.log('\n=== 2. Drafted questions, as they would appear (v2 beside it)');
 for (const r of ranked.filter(x => x.decision === 'reply')) {
   console.log(`\n@${r.handle} (${r.product}, ${r.age_hours}h ago, ${r.followers ?? '?'} followers) · https://x.com/${r.handle}/status/${r.id}`);
   console.log(`  post:      ${r.text}`);
   console.log(`  reply now: ${r.question}`);
-  console.log(`  last run:  ${r.prev_question ?? `(${r.prev_decision ?? 'not in last run'})`}`);
+  console.log(`  replies to: ${r.in_reply_to_handle ? '@' + r.in_reply_to_handle : 'nothing (standalone)'}${isBrand(r) ? ' (brand post)' : ''}`);
+  console.log(`  v2:        ${r.prev_question ?? `(${r.prev_decision ?? 'not in v2'}${r.prev_skip_reason ? `: ${r.prev_skip_reason}` : ''})`}`);
   console.log(`  about:     ${r.moment} · confidence ${r.confidence}${r.flags.length ? ` · FLAGS: ${r.flags.join(', ')}` : ''}`);
 }
 const droppedFromLast = results.filter(r => r.prev_decision === 'reply' && r.decision !== 'reply');
-for (const r of droppedFromLast) console.log(`\n@${r.handle}: replied last run ("${r.prev_question}"), now skip (${r.skip_reason}). ${r.why}`);
+for (const r of droppedFromLast) console.log(`\n@${r.handle}: replied in v2 ("${r.prev_question}"), now skip (${r.skip_reason}). ${r.why}`);
 
 const agree = results.filter(r => r.match).length;
 const disagree = results.filter(r => !r.match);
 console.log('\n=== 3. Agreement with your calls ("maybe" counts either way)');
-console.log(`  ${agree} of ${results.length} agree (last run: ${[...previous.values()].filter((p: any) => p.match).length} of ${previous.size}).`);
+console.log(`  ${agree} of ${results.length} agree (v2: ${[...previous.values()].filter((p: any) => p.match).length} of ${previous.size}).`);
 for (const r of disagree) console.log(`  @${r.handle}: you said ${r.human}, agent said ${r.decision}${r.skip_reason ? ` (${r.skip_reason})` : ''}. ${r.why}`);
 
-console.log(`\n=== 4. Cost: ${cost ?? '?'} CREDIT in total on ${MODEL}, of which conversation lookups ${lookupCost.toFixed(4)}.`);
+console.log(`\n=== 4. Cost: ${cost ?? '?'} CREDIT in total on ${MODEL}, of which reply-parent lookups ${lookupCost.toFixed(4)}.`);
 
 mkdirSync('data/draft-tests', { recursive: true });
 writeFileSync(OUT, JSON.stringify({ run_at: now.toISOString(), model: MODEL, sample: SAMPLE, previous: PREVIOUS, cost, lookup_cost: lookupCost, agreement: { agree, of: results.length }, results: ranked }, null, 2));
@@ -196,8 +226,8 @@ writeFileSync(OUT, JSON.stringify({ run_at: now.toISOString(), model: MODEL, sam
 const replies = results.filter(r => r.decision === 'reply');
 const flagged = replies.filter(r => r.flags.length);
 console.log(`\n=== SUMMARY
-The agent would reply to ${replies.length} of ${results.length} posts (last run: ${[...previous.values()].filter((p: any) => p.decision === 'reply').length}).
-${results.filter(r => r.own_experience !== 'yes').length} posts were judged not clearly the poster's own experience; ${results.filter(r => r.skip_reason === 'same_conversation').length} were dropped as a second reply in the same thread.
+The agent would reply to ${replies.length} of ${results.length} posts (v2: ${[...previous.values()].filter((p: any) => p.decision === 'reply').length}).
+${results.filter(r => r.own_experience !== 'yes').length} posts were judged not clearly the poster's own experience; ${results.filter(r => r.skip_reason === 'same_conversation').length} were dropped as a second reply in the same exchange; ${results.filter(r => r.skip_reason === 'brand_post_cap').length} hit the cap of ${BRAND_POST_CAP} per brand post.
 It agrees with your calls on ${agree} of ${results.length}${disagree.length ? `; it disagrees on ${disagree.map(r => '@' + r.handle).join(', ')}` : ''}.
 ${flagged.length ? `${flagged.length} drafted questions broke a mechanical rule or had a lookup problem (see FLAGS).` : 'Every drafted question passed the mechanical checks.'}
-Cost ${cost ?? '?'} CREDIT. Saved to ${OUT}; last run's output is untouched. Nothing was posted.`);
+Cost ${cost ?? '?'} CREDIT. Saved to ${OUT}; earlier runs' output is untouched. Nothing was posted.`);
