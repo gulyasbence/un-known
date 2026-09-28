@@ -1,6 +1,6 @@
 // Read-only probe of Orbio's X tools, for the X agent. Posts nothing.
 // Tests: real balance change per call, search quality, conversation_id depth,
-// mentions of @un_known_tool, profiles, narrow vs full-page cost.
+// mentions of the agent's account, profiles, narrow vs full-page cost.
 // Run: pnpm exec tsx scripts/test-orbio-read.ts
 import 'dotenv/config';
 import { gatewayBalance } from '../src/money.js';
@@ -9,7 +9,7 @@ const KEY = process.env.ORBIO_API_KEY;
 if (!KEY) { console.error('ORBIO_API_KEY is not set in .env'); process.exit(1); }
 
 const BASE = (process.env.ORBIO_BASE_URL || 'https://api.orbio.so/api/v1') + '/tools';
-const ACCOUNT = 'un_known_tool';
+const ACCOUNT = process.env.AGENT_X_HANDLE || 'un_known_app';   // the agent's X handle, without the @
 const TEST_TWEET = '2104662314729279982';          // the "hello. testing." post
 const SEARCH = 'fomo (slow OR broken OR execution OR fees) -is:retweet';
 const READ_CAP = '0.03';                           // a full page of 100 is 0.022

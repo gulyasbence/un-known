@@ -2,6 +2,10 @@
 
 Ongoing work after Build Week on moving (un)known to X, where crypto users already complain in public. The plan is in the README under "Next: interviews where the complaints already are". This file records what was tested and what it changed, newest entries at the top.
 
+## 2026-09-28, later
+
+The agent's X handle was renamed from @un_known_tool to @un_known_app. `social.x.profile` finds @un_known_app and returns "User not found" for the old handle. Orbio's connected account (seen through `social.post.status`) still shows the old username and is marked active; whether posting still works after the rename is untested until the next post. Scripts read the handle from `AGENT_X_HANDLE` (default `un_known_app`), and the landing page links to https://x.com/un_known_app.
+
 ## 2026-09-28
 
 What we ran: `scripts/test-orbio-post.ts` (one real post) and `scripts/test-orbio-read.ts` (read-only), plus one mentions check after a reply to the test post.
