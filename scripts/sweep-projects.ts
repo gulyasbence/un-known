@@ -6,6 +6,7 @@
 //      replies under its 5 most recent posts. Stops if spend passes the budget.
 //   3. Label with a cheap model, keep real + own + specific complaints, group them into themes.
 // Output: data/sweeps/<date>.json. Run: pnpm exec tsx scripts/sweep-projects.ts
+// Named handles instead of the DefiLlama pick: --handles fomo,phantom [--out data/sweeps/x.json]
 import 'dotenv/config';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { gatewayBalance } from '../src/money.js';
@@ -35,6 +36,9 @@ type Label = typeof LABELS[number];
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const now = new Date();
+const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i > -1 ? process.argv[i + 1] : undefined; };
+const HANDLES = arg('handles')?.split(',').map(s => s.trim()).filter(Boolean);
+const OUT_FILE = arg('out');
 const since = day(new Date(now.getTime() - 7 * 864e5));
 
 // ---------- Spend guard: the key's real "used" counter since start
@@ -68,7 +72,11 @@ const slim = (t: any, source: Post['source']): Post => ({
 const link = (p: Post) => `https://x.com/${p.handle}/status/${p.id}`;
 
 // ---------- Step 1: pick projects
-console.log('=== 1. Picking projects from DefiLlama');
+console.log(HANDLES ? `=== 1. Named handles: ${HANDLES.join(', ')}` : '=== 1. Picking projects from DefiLlama');
+type Proj = { handle: string; names: string[]; categories: string[]; fees7d: number; volume7d: number };
+let pool: Proj[];
+if (HANDLES) pool = HANDLES.map(h => ({ handle: h, names: [h], categories: ['named'], fees7d: 0, volume7d: 0 }));
+else {
 const getJson = async (u: string) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u} → HTTP ${r.status}`); return r.json() as Promise<any>; };
 const [fees, dexs, protocols] = await Promise.all([
   getJson('https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true'),
@@ -80,7 +88,6 @@ const cexHandles = new Set((protocols as any[]).filter(p => p.category === 'CEX'
 const volumeById = new Map<string, number>((dexs.protocols as any[]).map(p => [String(p.defillamaId), Number(p.total7d ?? 0)]));
 
 // Several DefiLlama entries can share one X account (pump.fun, PumpSwap, its app): merge by handle.
-type Proj = { handle: string; names: string[]; categories: string[]; fees7d: number; volume7d: number };
 const byHandle = new Map<string, Proj>();
 for (const p of fees.protocols as any[]) {
   if (!CATS.has(p.category) || !p.total7d) continue;
@@ -97,9 +104,10 @@ for (const p of fees.protocols as any[]) {
 const all = [...byHandle.values()];
 const topFees = [...all].sort((a, b) => b.fees7d - a.fees7d).slice(0, POOL);
 const topVol = [...all].sort((a, b) => b.volume7d - a.volume7d).slice(0, 10);
-const pool = [...new Map([...topFees, ...topVol].map(p => [p.handle.toLowerCase(), p])).values()];
+pool = [...new Map([...topFees, ...topVol].map(p => [p.handle.toLowerCase(), p])).values()];
 console.log(`  ${all.length} trader-facing handles on DefiLlama; pool of ${pool.length} by 7d fees plus top DEX volume.`);
 
+}
 type Picked = Proj & { name: string; followers: number; verified: boolean; latest: string; recentOwn: Post[] };
 const picked: Picked[] = [];
 let stopped: string | null = null;
@@ -115,7 +123,7 @@ try {
 
   // Walk down by followers; a handle read tells us if it's active, and gives the posts to read replies under.
   for (const { p, f } of ranked) {
-    if (picked.length >= KEEP) break;
+    if (picked.length >= (HANDLES ? HANDLES.length : KEEP)) break;
     const own = await tool('social.x.posts', { handle: f.screen_name, limit: 20 }, '0.01');
     const tweets: any[] = own.result?.tweets ?? [];
     const latest = tweets.map(t => t.tweet_created_at).filter(Boolean).sort().at(-1) ?? '';
@@ -226,7 +234,7 @@ for (const proj of out.projects) {
 await sleep(3000);
 const total = await spent();
 out.cost = { tool_credit: +toolCredit.toFixed(6), total_used_delta: +total.toFixed(6), stopped };
-const file = `data/sweeps/${now.toLocaleDateString('en-CA')}.json`;
+const file = OUT_FILE ?? `data/sweeps/${now.toLocaleDateString('en-CA')}.json`;
 mkdirSync('data/sweeps', { recursive: true });
 writeFileSync(file, JSON.stringify(out, null, 2));
 
