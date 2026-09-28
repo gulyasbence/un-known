@@ -4,6 +4,8 @@ Short user interviews, run by an agent, paid for with Orbio CREDIT.
 
 Live: https://un-known.fly.dev · Built for Orbio Build Week, Sep 2026.
 
+The Build Week submission as judged: [build-week-submission](https://github.com/gulyasbence/un-known/tree/build-week-submission).
+
 ## What it is
 
 A founder pastes what they already have about their project. They get back five things they don't know about their users, ranked, each with the gap written in their own words, plus a list of things the interviewer should stay away from. They fund a round and get one invite link.
@@ -74,7 +76,7 @@ It runs on its own, all the time:
 
 Nothing in this section is built yet. The interview and synthesis logic above is what it reuses.
 
-### What Orbio's tools cover today
+### What Orbio's tools covered (as of Sep 27)
 
 Checked against the public tool catalogue (`GET /api/v1/tools`), Sep 27. Not yet tested with a live call.
 
@@ -83,6 +85,8 @@ Checked against the public tool catalogue (`GET /api/v1/tools`), Sep 27. Not yet
 - Cost is small. At 20 posts a day plus reply checks on 20 threads, the X tools come to roughly 5 CREDIT a week before inference.
 
 Until `social.post` can reply, replies would go out through Zernio or the X API directly, with search and all model calls staying on Orbio.
+
+Work in progress, dated: [docs/x-agent.md](docs/x-agent.md).
 
 ## Stack
 
