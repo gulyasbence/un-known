@@ -23,11 +23,12 @@ function isModelUnavailable(e: unknown) {
   return code === 'model_not_available' || /model_not_available|No provider is currently serving/i.test(msg);
 }
 
-export async function json<T>(system: string, user: string, mock: () => T, scope: Scope = 'round'): Promise<LlmResult<T>> {
+// opts.models overrides the model chain (e.g. a cheap model for bulk labelling); the default is MODEL then MODEL_FALLBACK.
+export async function json<T>(system: string, user: string, mock: () => T, scope: Scope = 'round', opts: { models?: string[] } = {}): Promise<LlmResult<T>> {
   const client = scope === 'prep' ? (prep ?? round) : (round ?? prep);
   if (!client) return { data: mock(), cost_cents: 0, balance: null, tokens: { in: 0, out: 0 }, model: 'mock' };
 
-  const models = [MODEL, MODEL_FALLBACK].filter((m, i, a) => m && a.indexOf(m) === i);
+  const models = (opts.models?.length ? opts.models : [MODEL, MODEL_FALLBACK]).filter((m, i, a) => m && a.indexOf(m) === i);
   let lastErr: unknown;
   for (const model of models) {
     // Some models on Orbio are served by providers that reject a temperature parameter and answer
@@ -55,7 +56,7 @@ export async function json<T>(system: string, user: string, mock: () => T, scope
       const cost_cents = Math.max(1, Math.round(est));
       let data: T;
       try { data = JSON.parse(text.replace(/^```json\s*|```$/g, '')); } catch { data = mock(); }
-      if (model !== MODEL) console.warn('[llm] fell back to', model, '(', MODEL, 'unavailable)');
+      if (model !== models[0]) console.warn('[llm] fell back to', model, '(', models[0], 'unavailable)');
       return { data, cost_cents, balance, tokens, model };
     } catch (e) {
       lastErr = e;
