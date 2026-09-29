@@ -4,7 +4,7 @@ Ongoing work after Build Week on moving (un)known to X, where crypto users alrea
 
 ## 2026-09-28, later
 
-The agent's X handle was renamed from @un_known_tool to @un_known_app. `social.x.profile` finds @un_known_app and returns "User not found" for the old handle. Orbio's connected account (seen through `social.post.status`) still shows the old username and is marked active; whether posting still works after the rename is untested until the next post. Scripts read the handle from `AGENT_X_HANDLE` (default `un_known_app`), and the landing page links to https://x.com/un_known_app.
+The agent's X handle was renamed from @un_known_tool to @un_known_app. `social.x.profile` finds @un_known_app and returns "User not found" for the old handle. Orbio's connected account (seen through `social.post.status`) kept showing the old username until the account was reconnected in the Orbio dashboard; after that it shows @un_known_app, active, with the same account id as before. Posting after the rename is still untested until the next post. Scripts read the handle from `AGENT_X_HANDLE` (default `un_known_app`), and the landing page links to https://x.com/un_known_app.
 
 ## 2026-09-28
 
