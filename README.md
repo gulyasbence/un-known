@@ -27,6 +27,8 @@ report  ←  round synthesis  ←  session writeup  ←  the chat
 Founder pages: `/` (paste), `/brief`, `/round/:id`, `/round/:id/report`.
 Interviewee: `/r/:id` spawns a session and redirects to `/s/:token`.
 
+Agents (Oct 22): `/r/:id.txt` is a plain-text how-to for an agent that can only fetch URLs. It starts nothing; `/r/:id/start.txt` starts a session, `/s/:token/answer.txt?text=…` answers, `/s/:token.txt` shows where it is. Same engine as the chat page. Every session closes with two fixed questions, after the five and outside the writeup: which wallet to pay, and whether the answers may be published (yes / anonymous / no, anything unclear is stored as no). A server-side token (`UNKNOWN_MVA_TOKEN`) lets MVA create rounds that go live without a funding step and buy nothing on chain, and read them back.
+
 There are no accounts. The round link carries its own key (`/round/:id?key=…`), so it is the only way back to a round and its report. The invite link is the separate one the founder sends out. Every open of the invite link starts a new session, so a round's session count is the number of times it was opened, not the number of people.
 
 ## Orbio

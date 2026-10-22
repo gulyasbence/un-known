@@ -71,8 +71,15 @@ export async function makeBrief(paste: string) {
 }
 
 // ---------- The interviewer ----------
-export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'open' | 'main' | 'followup' | 'close' };
-export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string; abandoned?: boolean };
+export type Turn = { role: 'agent' | 'user'; text: string; item?: number; kind?: 'open' | 'main' | 'followup' | 'close' | 'closeq' };
+// close: which close question is out (0 wallet, 1 publish); unset until the five are done.
+export type State = { item: number; asked_followup: boolean; followups: number; skipped: number; done: boolean; used_at_start?: number | null; screener?: string[]; who?: string; abandoned?: boolean; close?: number };
+
+// Asked after the five unknowns, word for word, no model involved (PO, Oct 22). Their turns are kind "closeq" and stay out of the writeup.
+export const CLOSE_QS = [
+  `Which wallet should I pay you at? (an address or ENS, or 'no thanks')`,
+  `OK to publish your answers with your name/handle? (yes / anonymous / no)`,
+];
 
 // The interviewer is told the topic of the unknown, never the founder's belief or the "because" line.
 const INT_SYS = (brief: Brief, item: Unknown | null, who: string, earlier: string) => `You are running a short chat interview with one user for ${brief.project} (${brief.one_line}). You know this world, so you don't explain it and you don't sound like a textbook. You ask about their life and what they did, never about the product's features, and you never pitch.

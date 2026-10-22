@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 mkdirSync('data', { recursive: true });
-export const db = new DatabaseSync('data/app.db');
+export const db = new DatabaseSync(process.env.DB_PATH || 'data/app.db');
 db.exec(`
 create table if not exists rounds (
   id text primary key, created_at text, project text, brief text,
@@ -12,7 +12,9 @@ create table if not exists sessions (
   state text, transcript text, cost_cents integer default 0, receipt text, report text, paid_at text
 );
 `);
-for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
+for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text','owner text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
+// The two close questions (PO, Oct 22): where to pay them, and whether their answers can be published. Asked after the five, outside the interview.
+for (const col of ['wallet text','publish text']) { try { db.exec(`alter table sessions add column ${col}`); } catch {} }
 // Ids are public: a round's id is the invite link anyone can open, so they are random, not guessable.
 const rand = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(36).padStart(2, '0')).join('').slice(0, n);
 export const id = () => rand(10);
@@ -31,6 +33,6 @@ export function getSession(where: 'id' | 'token', v: string) {
   return { ...s, state: JSON.parse(s.state), transcript: JSON.parse(s.transcript), receipt: s.receipt ? JSON.parse(s.receipt) : null, report: s.report ? JSON.parse(s.report) : null };
 }
 export function saveSession(s: any) {
-  db.prepare('update sessions set state=?, transcript=?, cost_cents=?, receipt=?, report=?, done_at=?, handle=?, paid_at=? where id=?')
-    .run(JSON.stringify(s.state), JSON.stringify(s.transcript), s.cost_cents, s.receipt ? JSON.stringify(s.receipt) : null, s.report ? JSON.stringify(s.report) : null, s.done_at ?? null, s.handle ?? null, s.paid_at ?? null, s.id);
+  db.prepare('update sessions set state=?, transcript=?, cost_cents=?, receipt=?, report=?, done_at=?, handle=?, paid_at=?, wallet=?, publish=? where id=?')
+    .run(JSON.stringify(s.state), JSON.stringify(s.transcript), s.cost_cents, s.receipt ? JSON.stringify(s.receipt) : null, s.report ? JSON.stringify(s.report) : null, s.done_at ?? null, s.handle ?? null, s.paid_at ?? null, s.wallet ?? null, s.publish ?? null, s.id);
 }

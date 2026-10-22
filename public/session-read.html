@@ -37,6 +37,8 @@ async function load(){
   $('#meta').textContent=bits.join(' · ');
 
   let html='';
+  // The two close questions (PO, Oct 22): where to pay them, and whether their answers may be published.
+  if(full.wallet||full.publish) html+=`<p class="small muted" style="margin:0 0 12px">Pay to: ${esc(full.wallet||'not answered')} · Publish: ${esc(full.publish||'not answered')}</p>`;
   if(!rep){
     html=`<div class="card muted small">Writing the report… <a href="#" onclick="load();return false">refresh</a></div>`;
     $('#out').innerHTML=html;return;

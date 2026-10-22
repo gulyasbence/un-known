@@ -119,6 +119,7 @@ function deal(){
 function start(){$('#deal').innerHTML='';document.body.classList.add('in-chat');const c=$('#chat');c.style.display='flex';c.style.flexDirection='column';$('#chat-project').textContent=S.project||'Chat';document.title=(S.project?S.project+' · ':'')+'(un)known';render();$('#in').focus()}
 function progressLabel(){
   if(S.state.done)return 'Done';
+  if(S.state.close!=null)return 'Two last ones';
   const item=S.state.item;
   if(item==null||item<0)return `Opening · ${S.n} questions`;
   return `Question ${Math.min(item+1,S.n)} of ${S.n}`;
@@ -172,7 +173,7 @@ function tooShort(v){const words=v.split(/\s+/).filter(Boolean);if(words.length<
 const inp=$('#in');
 async function send(){
   const v=$('#in').value.trim();if(!v)return;
-  if(tooShort(v)){inp.style.borderColor='var(--warn)';inp.setAttribute('placeholder','Say a bit more. A sentence or two helps');setTimeout(()=>{inp.style.borderColor='';inp.setAttribute('placeholder','type your answer')},2000);return}
+  if(S.state.close==null&&tooShort(v)){inp.style.borderColor='var(--warn)';inp.setAttribute('placeholder','Say a bit more. A sentence or two helps');setTimeout(()=>{inp.style.borderColor='';inp.setAttribute('placeholder','type your answer')},2000);return}
   $('#in').value='';inp.style.height='auto';$('#send').disabled=true;inp.disabled=true;
   S.transcript.push({role:'user',text:v});render();showThinking();
   try{
