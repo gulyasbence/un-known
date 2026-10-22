@@ -129,10 +129,10 @@ function sessionText(c: any, token: string) {
   const s = getSession('token', token);
   if (!s) return c.text('No such session. Start one from the invite link.', 404);
   const r = getRound(s.round_id)!, b = base(c), st: State = s.state, n = r.brief.unknowns.length;
-  const where = st.done ? 'done' : st.close != null ? `closing question ${st.close + 1} of 2` : st.item < 0 ? 'opening question' : `question ${st.item + 1} of ${n}`;
+  const where = st.close != null ? `closing question ${st.close + 1} of 2` : st.item < 0 ? 'opening question' : `question ${st.item + 1} of ${n}`;
   const tape = s.transcript.map((t: Turn) => `${t.role === 'agent' ? 'Interviewer' : 'You'}: ${t.text}`).join('\n');
   return c.text(`(un)known · ${r.brief.project}
-status: ${st.done ? 'done' : 'in progress'} · ${where}
+status: ${st.done ? 'done' : `in progress · ${where}`}
 session: ${b}/s/${s.token}.txt
 
 ${st.done ? 'Thanks, everything is saved. Nothing more to do.' : `Interviewer: ${currentQuestion(s)}
