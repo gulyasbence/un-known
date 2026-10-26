@@ -12,7 +12,7 @@ create table if not exists sessions (
   state text, transcript text, cost_cents integer default 0, receipt text, report text, paid_at text
 );
 `);
-for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text','owner text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
+for (const col of ['paste text','bounty_held_cents integer default 0','prep_cents integer default 0','synthesis text','synthesis_at text','synthesis_session_ids text','secret text','owner text','closed_at text']) { try { db.exec(`alter table rounds add column ${col}`); } catch {} }
 // The two close questions (PO, Oct 22): where to pay them, and whether their answers can be published. Asked after the five, outside the interview.
 for (const col of ['wallet text','publish text']) { try { db.exec(`alter table sessions add column ${col}`); } catch {} }
 // Ids are public: a round's id is the invite link anyone can open, so they are random, not guessable.

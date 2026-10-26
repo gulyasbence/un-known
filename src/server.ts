@@ -74,6 +74,8 @@ app.get('/api/health', async c => {
 function liveRound(rid: string): { r?: any; err?: [string, 404 | 410] } {
   const r = getRound(rid);
   if (!r || !r.funded_at) return { err: ['This round is not live.', 404] };
+  // Closed by its owner (PO, Oct 26: MVA's round 4p6f0z056j ends at 2 of 6): no new sessions; what's done stays readable.
+  if (r.closed_at) return { err: ['This round is closed.', 410] };
   if (r.balance_cents <= 0) return { err: ['This round is out of budget.', 410] };
   return { r };
 }
